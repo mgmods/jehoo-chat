@@ -1,7 +1,4 @@
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap');
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
 
 :root { color-scheme: dark; --bg: #0b1118; --panel: #121b25; --line: #263342; --muted: #94a3b8; --mint: #31d6b0; }
 * { box-sizing: border-box; }
