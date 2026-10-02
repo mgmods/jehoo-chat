@@ -1,39 +1,44 @@
 # Jehoo Chat
 
-A cross-platform chat app starter for Android and iOS built with Expo React Native, TypeScript, and Firebase.
+Arabic-first mobile social and voice-room app starter built with Expo + React Native. Designed to evolve: screens and sample room data are currently kept in `App.js`, so features can be changed and moved into modules as the project grows.
 
-## Status
+## Current prototype
+- Arabic home screen and sample voice-room cards
+- Room screen with speaker-seat layout and sample chat
+- Profile, gifts/coins presentation, and bottom navigation
+- Sign-in/sign-up form presentation
 
-This repository is being initialized with the mobile app foundation. Authentication, Firestore-backed direct/group chats, media selection/upload, push-notification setup, and an admin area are scaffolded. Voice/video calling requires a separately configured WebRTC signaling service and a custom native development build; it is not production-ready until that service and security rules are configured.
+**Important:** this is a UI starter only. Audio is not streamed; messages, authentication, uploads, notifications, wallet, VIP purchases, agencies, and admin actions are not connected yet.
 
-## Requirements
+## Run
+Requires Node.js LTS and npm. Install Expo Go on your phone.
 
-- Node.js LTS and npm
-- Expo-compatible Android/iOS tooling (Expo Go is limited; use a development build for native calling)
-- A Firebase project with Authentication (Email/Password), Cloud Firestore, and Cloud Storage enabled
-- For push notifications: EAS project setup and server-side notification delivery
+```bash
+npm install
+npx expo start
+```
 
-## Setup
+Scan the QR code with Expo Go, or use `npm run android` / `npm run ios`. Local iOS builds require macOS and Xcode.
 
-1. Install dependencies: `npm install`
-2. Copy `.env.example` to `.env` and fill in your Firebase web app configuration.
-3. In Firebase Console, enable Email/Password Authentication, create Firestore and Storage, and apply the rules in `firebase/`.
-4. Start the app: `npx expo start`
-5. For device builds, configure EAS: `npx eas build:configure`.
+## Production services to add
+- Auth and database: Supabase Auth + PostgreSQL (or equivalent) with row-level security.
+- Realtime chat/presence: Supabase Realtime or authenticated WebSockets.
+- Voice/video: LiveKit, Agora, or WebRTC; create temporary room tokens on a trusted server.
+- Media: private object storage and signed URLs.
+- Push notifications: Expo Notifications, APNs, FCM, and a backend sender.
+- Coins/VIP: Apple/Google billing where applicable; validate receipts server-side and keep a server-side ledger.
+- Admin: protected dashboard, server-side permissions, and audit logs.
 
-Never put service-account credentials or admin private keys in the mobile app. The admin screen relies on Firebase custom claims; set claims only from a trusted server environment.
+## Security
+`EXPO_PUBLIC_*` values are bundled in the app and are not secrets. Never commit service-role keys, database passwords, payment secrets, or voice-provider secrets. Keep secrets on a trusted backend or in CI secret storage.
 
-## Features in this starter
+Before launch, implement password recovery, access policies, rate limits, report/block tools, account deletion, moderation, privacy and age policies, upload protection, purchase verification, and device testing.
 
-- Email sign up / sign in
-- Direct and group chat list and message thread
-- Image and document selection with Firebase Storage upload
-- Push token registration scaffold
-- Admin-only screen gated by the `admin` custom claim
-- Arabic-friendly UI and responsive mobile layout
+## Roadmap
+1. Backend schema, authentication, and editable profiles.
+2. Direct/group messaging and media uploads.
+3. Live voice rooms and moderator controls.
+4. Gifts, wallet ledger, VIP, agencies, and verified purchases.
+5. Push notifications, admin dashboard, monitoring, and release builds.
 
-## Important limitations
-
-- Push delivery needs a trusted backend/Cloud Function to send notifications; client token registration alone does not send notifications.
-- Voice/video calling needs a signaling server, STUN/TURN configuration, native permissions, and a custom development build. Do not treat the call UI as a working calling service until these are configured and tested.
-- Review and test Firestore/Storage rules before production. Add abuse reporting, rate limits, retention policies, privacy policy, and account deletion before public launch.
+No license has been selected yet; choose one before accepting outside contributions.
