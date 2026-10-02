@@ -138,6 +138,36 @@ create policy "Users can send messages when not blocked" on public.direct_messag
     (b.blocker_id = sender_id and b.blocked_id = receiver_id) or
     (b.blocker_id = receiver_id and b.blocked_id = sender_id))
 );
+create or replace function public.protect_direct_message_updates()
+returns trigger language plpgsql security definer set search_path = public
+as $function$
+begin
+  if new.id is distinct from old.id
+     or new.sender_id is distinct from old.sender_id
+     or new.receiver_id is distinct from old.receiver_id
+     or new.body is distinct from old.body
+     or new.created_at is distinct from old.created_at then
+    raise exception 'Message content and participants cannot be changed';
+  end if;
+
+  if auth.uid() = old.sender_id then
+    if new.deleted_for_receiver is distinct from old.deleted_for_receiver then
+      raise exception 'Sender can only delete messages from their own chat history';
+    end if;
+  elsif auth.uid() = old.receiver_id then
+    if new.deleted_for_sender is distinct from old.deleted_for_sender then
+      raise exception 'Receiver can only delete messages from their own chat history';
+    end if;
+  else
+    raise exception 'Not allowed to update this message';
+  end if;
+  return new;
+end;
+$function$;
+drop trigger if exists protect_direct_message_updates on public.direct_messages;
+create trigger protect_direct_message_updates before update on public.direct_messages
+for each row execute function public.protect_direct_message_updates();
+
 create policy "Participants can soft-delete messages for themselves" on public.direct_messages for update to authenticated
 using (auth.uid() = sender_id or auth.uid() = receiver_id)
 with check (auth.uid() = sender_id or auth.uid() = receiver_id);
