@@ -24,6 +24,6 @@
     "@react-native-async-storage/async-storage": "2.1.0",
     "expo-clipboard": "~7.0.1",
     "@livekit/react-native-expo-plugin": "^1.0.2",
-    "@config-plugins/react-native-webrtc": "~11.0.0"
+    "@config-plugins/react-native-webrtc": "~10.0.0"
   }
 }
