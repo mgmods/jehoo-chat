@@ -5,7 +5,8 @@ Arabic-first mobile social and voice-room app starter built with Expo + React Na
 ## Current prototype
 - Arabic home screen and sample voice-room cards
 - Room screen with speaker-seat layout and sample chat
-- Profile, gifts/coins presentation, and bottom navigation
+- Profile with a unique six-digit numeric Jehoo ID, gifts/coins presentation, and bottom navigation
+- Private one-to-one messaging, inbox, message copy, follow/unfollow, block/unblock, and delete-chat-for-yourself controls (requires Supabase SQL setup)
 - Sign-in/sign-up form presentation
 
 **Important:** the app now includes a LiveKit client connection flow, but audio is not usable until you deploy and configure a trusted token-issuing backend and test on physical devices. Room seats remain placeholders. The app is still a prototype; messages, authentication, uploads, notifications, wallet, VIP purchases, agencies, and admin actions are not connected yet.
@@ -19,6 +20,15 @@ npx expo start
 ```
 
 Scan the QR code with Expo Go, or use `npm run android` / `npm run ios`. Local iOS builds require macOS and Xcode.
+
+## Enable private messages and Jehoo IDs
+1. Open your Supabase project and run the complete `supabase-schema.sql` file in **SQL Editor**. It adds the six-digit unique `public_id`, creates profiles automatically for new Auth users, and sets up follows, blocks, private messages, and row-level security policies.
+2. Confirm `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` are set in your local environment. Never put a service-role key in the app.
+3. Install updated dependencies with `npm install` so `expo-clipboard` is installed. Restart Expo after installation.
+4. Sign in with two test accounts. Copy the six-digit Jehoo ID from each profile, search that ID in Messages, send a message, and test follow, block, copy, and delete-chat behavior with both accounts.
+5. If realtime message updates do not arrive, check that `direct_messages` is enabled in Supabase Database Replication / Realtime. The SQL attempts to add it to `supabase_realtime` where available.
+
+Deleting a chat hides messages from the current user's side; it does not promise to erase messages from the other participant's history. Blocking prevents new messages in either direction through the database insert policy.
 
 ## Production services to add
 - Auth and database: Supabase Auth + PostgreSQL with row-level security. Email/password and Google ID-token sign-in UI are integrated; provider setup is required.
