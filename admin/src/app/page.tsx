@@ -96,7 +96,7 @@ export default function AdminHome() {
 
   return <div className="dashboard" dir={ar?"rtl":"ltr"}>
     <aside className="sidebar"><div className="brand">JEHOO <span>●</span></div><div className="nav">
-      {nav.map((label,index)=><a key={label} href={index===0?"#dashboard":"#"+index} className={index===0?"active":""} onClick={(e)=>{if(index!==0){e.preventDefault();setError(ar?"هذا القسم سيُفعّل عند تنفيذ مرحلته مع فحص الصلاحيات.":"This section will be enabled in its implementation phase with permission checks.");}}}>{label}</a>)}
+      {nav.map((label,index)=>index===0?<a key={label} href="#dashboard" className="active">{label}</a>:<span key={label} className="nav-disabled" aria-disabled="true">{label}</span>)}
     </div><div style={{marginTop:24}} className="muted">{ar?"الدور الحالي":"Current role"}: <span className="pill">{role}</span></div></aside>
     <main className="main" id="dashboard">
       <div className="topbar"><div><h1 style={{margin:"0 0 6px"}}>{copy.dashboard}</h1><div className="muted">{copy.dashboardSubtitle}</div></div><div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}><button className="secondary" onClick={()=>setLocale(ar?"en":"ar")}>{ar?"English":"العربية"}</button><button className="secondary" onClick={()=>void loadDashboard(user.id)}>{ar?"تحديث":"Refresh"}</button><button className="secondary" onClick={signOut}>{copy.signOut}</button></div></div>
