@@ -16,6 +16,7 @@ as $$
 declare candidate integer;
 begin
   if new.public_id is null then
+    perform pg_advisory_xact_lock(731942817);
     loop
       candidate := floor(100000 + random() * 900000)::integer;
       exit when not exists (select 1 from public.profiles where public_id = candidate);
