@@ -45,7 +45,7 @@ Deno.serve(async (req: Request) => {
   const idem = payload.idempotencyKey ?? req.headers.get("x-idempotency-key") ?? "";
   if (typeof idem !== "string" || idem.length < 8 || idem.length > 160) return response(400, { error: "IDEMPOTENCY_KEY_REQUIRED" });
 
-  const { data, error } = await adminClient.schema("private").rpc("apply_wallet_adjustment", {
+  const { data, error } = await adminClient.rpc("jehoo_apply_wallet_adjustment", {
     p_actor_id: user.id,
     p_user_id: payload.userId,
     p_amount: payload.amount,
