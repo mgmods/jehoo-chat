@@ -187,3 +187,85 @@ begin
   end if;
 exception when undefined_object then null;
 end $$;
+
+
+-- Security/performance hardening for new and existing Jehoo deployments.
+create or replace function public.generate_jehoo_public_id()
+returns trigger language plpgsql security definer set search_path = public
+as $$
+declare candidate integer;
+begin
+  new.public_id := null;
+  perform pg_advisory_xact_lock(731942817);
+  loop
+    candidate := floor(100000 + random() * 900000)::integer;
+    exit when not exists (select 1 from public.profiles where public_id = candidate);
+  end loop;
+  new.public_id := candidate;
+  return new;
+end;
+$$;
+
+create or replace function public.prevent_profile_public_id_change()
+returns trigger language plpgsql set search_path = public
+as $$
+begin
+  if new.public_id is distinct from old.public_id then
+    raise exception 'Jehoo public ID cannot be changed';
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists profiles_public_id_immutable on public.profiles;
+create trigger profiles_public_id_immutable before update of public_id on public.profiles
+for each row execute function public.prevent_profile_public_id_change();
+
+revoke execute on function public.generate_jehoo_public_id() from public, anon, authenticated;
+revoke execute on function public.handle_new_jehoo_user() from public, anon, authenticated;
+revoke execute on function public.protect_direct_message_updates() from public, anon, authenticated;
+revoke execute on function public.prevent_profile_public_id_change() from public, anon, authenticated;
+revoke execute on function public.rls_auto_enable() from public, anon, authenticated;
+
+revoke update on public.profiles from authenticated;
+grant update (display_name, bio, country, avatar_url, updated_at) on public.profiles to authenticated;
+
+create index if not exists user_follows_following_id_idx on public.user_follows(following_id);
+create index if not exists user_blocks_blocked_id_idx on public.user_blocks(blocked_id);
+
+drop policy if exists "Users can insert their own profile" on public.profiles;
+drop policy if exists "Users can update their own profile" on public.profiles;
+drop policy if exists "Users can delete their own profile" on public.profiles;
+create policy "Users can insert their own profile" on public.profiles for insert to authenticated with check ((select auth.uid()) = id);
+create policy "Users can update their own profile" on public.profiles for update to authenticated using ((select auth.uid()) = id) with check ((select auth.uid()) = id);
+create policy "Users can delete their own profile" on public.profiles for delete to authenticated using ((select auth.uid()) = id);
+
+drop policy if exists "Users can view follows involving them" on public.user_follows;
+drop policy if exists "Users can follow as themselves" on public.user_follows;
+drop policy if exists "Users can unfollow as themselves" on public.user_follows;
+create policy "Users can view follows involving them" on public.user_follows for select to authenticated using ((select auth.uid()) = follower_id or (select auth.uid()) = following_id);
+create policy "Users can follow as themselves" on public.user_follows for insert to authenticated with check ((select auth.uid()) = follower_id and follower_id <> following_id);
+create policy "Users can unfollow as themselves" on public.user_follows for delete to authenticated using ((select auth.uid()) = follower_id);
+
+drop policy if exists "Users can view their blocks" on public.user_blocks;
+drop policy if exists "Users can block as themselves" on public.user_blocks;
+drop policy if exists "Users can unblock as themselves" on public.user_blocks;
+create policy "Users can view their blocks" on public.user_blocks for select to authenticated using ((select auth.uid()) = blocker_id);
+create policy "Users can block as themselves" on public.user_blocks for insert to authenticated with check ((select auth.uid()) = blocker_id and blocker_id <> blocked_id);
+create policy "Users can unblock as themselves" on public.user_blocks for delete to authenticated using ((select auth.uid()) = blocker_id);
+
+drop policy if exists "Participants can read their messages" on public.direct_messages;
+drop policy if exists "Users can send messages when not blocked" on public.direct_messages;
+drop policy if exists "Participants can soft-delete messages for themselves" on public.direct_messages;
+create policy "Participants can read their messages" on public.direct_messages for select to authenticated using (
+  (((select auth.uid()) = sender_id) and not deleted_for_sender) or
+  (((select auth.uid()) = receiver_id) and not deleted_for_receiver)
+);
+create policy "Users can send messages when not blocked" on public.direct_messages for insert to authenticated with check (
+  (select auth.uid()) = sender_id and sender_id <> receiver_id and
+  not exists (select 1 from public.user_blocks b where
+    (b.blocker_id = sender_id and b.blocked_id = receiver_id) or
+    (b.blocker_id = receiver_id and b.blocked_id = sender_id))
+);
+create policy "Participants can soft-delete messages for themselves" on public.direct_messages for update to authenticated
+using ((select auth.uid()) = sender_id or (select auth.uid()) = receiver_id)
+with check ((select auth.uid()) = sender_id or (select auth.uid()) = receiver_id);
