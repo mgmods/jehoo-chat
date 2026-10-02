@@ -53,17 +53,22 @@ export default function ChatMonitorPage() {
     if (active.messageType) body.messageType=active.messageType;
     if (overrides?.conversationId) body.conversationId=overrides.conversationId;
     else if (selectedConversationId && !updateList) body.conversationId=selectedConversationId;
-    const {data,error:invokeError}=await supabase.functions.invoke("chat-monitor-search",{body});
-    if (invokeError) setError(invokeError.message);
-    else if (data?.error) setError(String(data.error));
-    else {
-      const rows=(data?.data ?? []) as MessageRow[];
-      setMessages(rows);
-      if (updateList) refreshConversations(rows);
-      if (!selectedMessageId || !rows.some((m)=>m.id===selectedMessageId)) setSelectedMessageId(rows[0]?.id ?? "");
-      if (!selectedConversationId && rows[0]?.conversation_id) setSelectedConversationId(rows[0].conversation_id);
+    try {
+      const {data,error:invokeError}=await supabase.functions.invoke("chat-monitor-search",{body});
+      if (invokeError) setError(invokeError.message);
+      else if (data?.error) setError(String(data.error));
+      else {
+        const rows=(data?.data ?? []) as MessageRow[];
+        setMessages(rows);
+        if (updateList) refreshConversations(rows);
+        if (!selectedMessageId || !rows.some((m)=>m.id===selectedMessageId)) setSelectedMessageId(rows[0]?.id ?? "");
+        if (!selectedConversationId && rows[0]?.conversation_id) setSelectedConversationId(rows[0].conversation_id);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "فشل تحميل الرسائل.");
+    } finally {
+      setSearching(false);
     }
-    setSearching(false);
   },[supabase,filters,selectedConversationId,selectedMessageId,refreshConversations]);
 
   useEffect(() => {
@@ -98,7 +103,7 @@ export default function ChatMonitorPage() {
   },[supabase,router,refreshConversations]);
 
   const selectedMessage=useMemo(()=>messages.find((m)=>m.id===selectedMessageId)??null,[messages,selectedMessageId]);
-  const visibleMessages=useMemo(()=>messages.filter((m)=>m.conversation_id===selectedConversationId),[messages,selectedConversationId]);
+  const visibleMessages=useMemo(()=>messages.filter((m)=>m.conversation_id===selectedConversationId).slice().sort((a,b)=>a.created_at.localeCompare(b.created_at)),[messages,selectedConversationId]);
 
   function updateFilter<K extends keyof Filters>(key:K,value:Filters[K]) {
     setFilters((old)=>({...old,[key]:value}));
