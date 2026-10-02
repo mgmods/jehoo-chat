@@ -27,31 +27,32 @@ export default function VoiceRoomRoute() {
   const [handlingRequest, setHandlingRequest] = useState<string|null>(null);
 
   const loadRoom = useCallback(async () => {
-    if (!supabase || !roomId) { setError("Supabase or room ID is missing."); setLoading(false); return; }
+    const client = supabase;
+    if (!client || !roomId) { setError("Supabase or room ID is missing."); setLoading(false); return; }
     setError("");
-    const { data: roomData, error: roomError } = await supabase.from("rooms")
+    const { data: roomData, error: roomError } = await client.from("rooms")
       .select("id,name,description,status,owner_id,livekit_room_name").eq("id",roomId).maybeSingle();
     if (roomError || !roomData) { setError(roomError?.message ?? "Room not found."); setLoading(false); return; }
     setRoom(roomData as RoomRow);
-    const { data: seatData, error: seatError } = await supabase.from("room_seats")
+    const { data: seatData, error: seatError } = await client.from("room_seats")
       .select("room_id,seat_number,status,user_id,reserved_for").eq("room_id",roomId).order("seat_number");
     if (seatError) { setError(seatError.message); setLoading(false); return; }
     const seatRows = (seatData ?? []) as SeatRow[];
     setSeats(seatRows);
     const ids = [...new Set(seatRows.flatMap((seat) => [seat.user_id,seat.reserved_for]).filter((id): id is string => Boolean(id)))];
     if (ids.length) {
-      const { data: profileRows, error: profileError } = await supabase.from("profiles")
+      const { data: profileRows, error: profileError } = await client.from("profiles")
         .select("id,display_name,avatar_url,level,vip_level").in("id",ids);
       if (profileError) { setError(profileError.message); setLoading(false); return; }
       const map: Record<string,ProfileRow> = {};
       (profileRows ?? []).forEach((p) => { map[p.id] = p as ProfileRow; });
       setProfiles(map);
     } else setProfiles({});
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user } } = await client.auth.getUser();
     const host = Boolean(user && user.id === roomData.owner_id);
     setIsHost(host);
     if (host) {
-      const { data: requests } = await supabase.from("room_requests")
+      const { data: requests } = await client.from("room_requests")
         .select("id,user_id,created_at,profiles(display_name)")
         .eq("room_id", roomId).eq("request_type", "microphone").eq("status", "pending")
         .order("created_at", { ascending: true });
@@ -72,36 +73,39 @@ export default function VoiceRoomRoute() {
   },[roomId,loadRoom]);
 
   async function joinVoice() {
-    if (!supabase || !room) return;
+    const client = supabase;
+    if (!client || !room) return;
     setBusy(true); setError("");
     try {
-      const { error: joinError } = await supabase.rpc("jehoo_join_room", { p_room_id: room.id });
+      const { error: joinError } = await client.rpc("jehoo_join_room", { p_room_id: room.id });
       if (joinError) throw joinError;
-      const { data, error: tokenError } = await supabase.functions.invoke("livekit-token",{body:{roomName:room.livekit_room_name}});
+      const { data, error: tokenError } = await client.functions.invoke("livekit-token",{body:{roomName:room.livekit_room_name}});
       if (tokenError) throw tokenError;
       if (!data?.serverUrl || !data?.participantToken) throw new Error("Voice token response is incomplete.");
       await AudioSession.startAudioSession();
       setLive({url:data.serverUrl,token:data.participantToken});
     } catch (e) {
-      if (supabase && room) await supabase.rpc("jehoo_leave_room", { p_room_id: room.id });
+      if (client && room) await client.rpc("jehoo_leave_room", { p_room_id: room.id });
       setError(e instanceof Error ? e.message : "Unable to connect to the voice room.");
       await AudioSession.stopAudioSession().catch(() => undefined);
     } finally { setBusy(false); }
   }
   async function leaveVoice() {
+    const client = supabase;
     setLive(null);
     await AudioSession.stopAudioSession().catch(() => undefined);
-    if (supabase && room) {
-      const { error: leaveError } = await supabase.rpc("jehoo_leave_room", { p_room_id: room.id });
+    if (client && room) {
+      const { error: leaveError } = await client.rpc("jehoo_leave_room", { p_room_id: room.id });
       if (leaveError) setError(leaveError.message);
       else { setMicRequestSent(false); void loadRoom(); }
     }
   }
   async function handleMicrophoneRequest(requestId:string, accept:boolean) {
-    if (!supabase) return;
+    const client = supabase;
+    if (!client) return;
     setHandlingRequest(requestId); setError("");
     try {
-      const { data: decision, error: handleError } = await supabase.functions.invoke("room-microphone", { body: { requestId, accept } });
+      const { data: decision, error: handleError } = await client.functions.invoke("room-microphone", { body: { requestId, accept } });
       if (handleError) throw handleError;
       if (decision?.error) throw new Error(String(decision.error));
       await loadRoom();
@@ -110,10 +114,11 @@ export default function VoiceRoomRoute() {
     } finally { setHandlingRequest(null); }
   }
   async function requestMicrophone() {
-    if (!supabase || !room) return;
+    const client = supabase;
+    if (!client || !room) return;
     setMicRequestBusy(true); setError("");
     try {
-      const { error: requestError } = await supabase.rpc("jehoo_request_microphone", { p_room_id: room.id });
+      const { error: requestError } = await client.rpc("jehoo_request_microphone", { p_room_id: room.id });
       if (requestError) throw requestError;
       setMicRequestSent(true);
     } catch (e) {
