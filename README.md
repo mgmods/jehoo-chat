@@ -70,3 +70,14 @@ The client code is integration scaffolding only. No token service is included, a
 - The app sends the signed-in Supabase access token to the configured LiveKit token endpoint and no longer asks the client to choose its own participant identity. The token endpoint must verify that JWT and derive the identity from the verified user; this repository does not include that endpoint.
 - Set `EXPO_PUBLIC_VOICE_TOKEN_URL` only to your trusted HTTPS token service. Audio still requires LiveKit server credentials stored on the backend, a native development build, and real-device testing.
 - The GitHub code changes are staged on `fix/supabase-hardening` for review; they are not merged into `main` yet.
+
+
+## Build an Android APK in the cloud
+
+The GitHub Actions workflow **Android APK** creates an installable debug APK without needing Android Studio on your computer.
+
+1. Open the repository's **Actions** tab and select **Android APK**.
+2. After the workflow finishes successfully, open the run and download the `jehoo-chat-android-apk` artifact.
+3. Extract the ZIP and install `app-debug.apk` on an Android phone. You may need to allow installs from your browser or file manager.
+
+The workflow uses the public Supabase URL/publishable key and the public LiveKit token endpoint URL as build-time configuration. LiveKit API secrets must remain in Supabase Function Secrets and must never be added to GitHub or the mobile app. The APK is a testing build, not a Play Store release. Voice rooms still require valid LiveKit secrets in Supabase and a successful real-device test.
