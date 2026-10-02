@@ -10,7 +10,16 @@
       "bundleIdentifier": "com.mgmods.jehoochat"
     },
     "android": {
-      "package": "com.mgmods.jehoochat"
-    }
+      "package": "com.mgmods.jehoochat",
+      "permissions": [
+        "RECORD_AUDIO",
+        "MODIFY_AUDIO_SETTINGS",
+        "BLUETOOTH_CONNECT"
+      ]
+    },
+    "plugins": [
+      "@livekit/react-native-expo-plugin",
+      "@config-plugins/react-native-webrtc"
+    ]
   }
 }
