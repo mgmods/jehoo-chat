@@ -66,7 +66,11 @@ export default function HomeScreen() {
       const hashParams = new URLSearchParams(callback.hash.startsWith("#") ? callback.hash.slice(1) : callback.hash);
       const accessToken = params.get("access_token") ?? hashParams.get("access_token");
       const refreshToken = params.get("refresh_token") ?? hashParams.get("refresh_token");
-      if (accessToken && refreshToken) {
+      const code = params.get("code");
+      if (code) {
+        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+        if (exchangeError) throw exchangeError;
+      } else if (accessToken && refreshToken) {
         const { error: sessionError } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
         if (sessionError) throw sessionError;
       } else {
