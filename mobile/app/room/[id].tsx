@@ -66,6 +66,7 @@ export default function VoiceRoomRoute() {
     const channel = supabase.channel("room-seats-" + roomId)
       .on("postgres_changes",{event:"*",schema:"public",table:"room_seats",filter:"room_id=eq."+roomId},() => { void loadRoom(); })
       .on("postgres_changes",{event:"*",schema:"public",table:"room_requests",filter:"room_id=eq."+roomId},() => { void loadRoom(); })
+      .on("postgres_changes",{event:"*",schema:"public",table:"room_members",filter:"room_id=eq."+roomId},() => { void loadRoom(); })
       .subscribe();
     return () => { void supabase.removeChannel(channel); };
   },[roomId,loadRoom]);
@@ -100,8 +101,9 @@ export default function VoiceRoomRoute() {
     if (!supabase) return;
     setHandlingRequest(requestId); setError("");
     try {
-      const { error: handleError } = await supabase.rpc("jehoo_handle_microphone_request", { p_request_id: requestId, p_accept: accept });
+      const { data: decision, error: handleError } = await supabase.functions.invoke("room-microphone", { body: { requestId, accept } });
       if (handleError) throw handleError;
+      if (decision?.error) throw new Error(String(decision.error));
       await loadRoom();
     } catch (e) {
       setError(e instanceof Error ? e.message : "تعذر معالجة طلب المايك");
@@ -133,7 +135,14 @@ export default function VoiceRoomRoute() {
     {loading ? <ActivityIndicator color="#31D6B0" style={{marginTop:36}} /> : error && !room ? <View style={s.center}><Text style={s.error}>{error}</Text><Pressable onPress={() => void loadRoom()}><Text style={s.mint}>إعادة المحاولة</Text></Pressable></View> : <>
       <ScrollView contentContainerStyle={s.content}>
         <View style={s.stage}><Text style={s.stageEmoji}>🎙️</Text><Text style={s.stageTitle}>{live?"متصل بالغرفة":"اجتمعوا بالصوت"}</Text><Text style={s.subtitle}>{room?.status==="locked"?"الغرفة مقفلة":room?.status==="closed"?"الغرفة مغلقة":"الغرفة الصوتية المباشرة"}</Text>
-          {live ? <LiveKitRoom serverUrl={live.url} token={live.token} connect={true} audio={true} video={false} onDisconnected={() => { setLive(null); void AudioSession.stopAudioSession().catch(() => undefined); }}><View style={s.connected}><Text style={s.connectedText}>اتصال LiveKit نشط</Text>{!isHost ? <Pressable disabled={micRequestBusy || micRequestSent} onPress={() => void requestMicrophone()} style={[s.primary,{opacity:micRequestSent?0.65:1}]}>{micRequestBusy?<ActivityIndicator color="#06251E"/>:<Text style={s.primaryText}>{micRequestSent?"تم إرسال طلب المايك":"طلب المايك"}</Text>}</Pressable> : null}<Pressable onPress={() => void leaveVoice()} style={s.primary}><Text style={s.primaryText}>مغادرة الغرفة</Text></Pressable></View></LiveKitRoom> : <Pressable disabled={busy || room?.status==="closed"} onPress={() => void joinVoice()} style={s.primary}>{busy?<ActivityIndicator color="#06251E"/>:<Text style={s.primaryText}>الانضمام للصوت</Text>}</Pressable>}
+          {live ? <LiveKitRoom serverUrl={live.url} token={live.token} connect={true} audio={true} video={false} onDisconnected={() => {
+            setLive(null);
+            void AudioSession.stopAudioSession().catch(() => undefined);
+            if (supabase && room) void supabase.rpc("jehoo_leave_room", { p_room_id: room.id }).then(() => {
+              setMicRequestSent(false);
+              void loadRoom();
+            });
+          }}><View style={s.connected}><Text style={s.connectedText}>اتصال LiveKit نشط</Text>{!isHost ? <Pressable disabled={micRequestBusy || micRequestSent} onPress={() => void requestMicrophone()} style={[s.primary,{opacity:micRequestSent?0.65:1}]}>{micRequestBusy?<ActivityIndicator color="#06251E"/>:<Text style={s.primaryText}>{micRequestSent?"تم إرسال طلب المايك":"طلب المايك"}</Text>}</Pressable> : null}<Pressable onPress={() => void leaveVoice()} style={s.primary}><Text style={s.primaryText}>مغادرة الغرفة</Text></Pressable></View></LiveKitRoom> : <Pressable disabled={busy || room?.status==="closed"} onPress={() => void joinVoice()} style={s.primary}>{busy?<ActivityIndicator color="#06251E"/>:<Text style={s.primaryText}>الانضمام للصوت</Text>}</Pressable>}
         </View>
         {error ? <Text style={s.error}>{error}</Text> : null}
         {isHost && pendingMicRequests.length > 0 ? <View style={s.section}><Text style={s.sectionTitle}>طلبات المايك · {pendingMicRequests.length}</Text>{pendingMicRequests.map((request) => <View key={request.id} style={s.requestRow}><View style={{flex:1}}><Text style={s.requestName}>{request.profiles?.display_name || "مستخدم"}</Text><Text style={s.requestSub}>يريد التحدث</Text></View><Pressable disabled={handlingRequest===request.id} onPress={() => void handleMicrophoneRequest(request.id,false)} style={s.rejectButton}><Text style={s.rejectText}>رفض</Text></Pressable><Pressable disabled={handlingRequest===request.id} onPress={() => void handleMicrophoneRequest(request.id,true)} style={s.acceptButton}>{handlingRequest===request.id?<ActivityIndicator color="#06251E"/>:<Text style={s.acceptText}>قبول</Text>}</Pressable></View>)}</View> : null}
