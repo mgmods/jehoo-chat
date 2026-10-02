@@ -18,7 +18,6 @@ export default function ChatMonitorPage() {
   const [loading, setLoading] = useState(true);
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState("");
-  const [userId, setUserId] = useState("");
   const [permissions, setPermissions] = useState<Set<string>>(new Set());
   const [filters, setFilters] = useState<Filters>({keyword:"",userId:"",from:"",to:"",messageType:"",includeMedia:false});
   const [messages, setMessages] = useState<MessageRow[]>([]);
@@ -74,7 +73,6 @@ export default function ChatMonitorPage() {
       if (!alive) return;
       const user=data.session?.user;
       if (!user) { router.replace("/"); setLoading(false); return; }
-      setUserId(user.id);
       const {data:roles,error:roleError}=await supabase.from("admin_user_roles").select("role_id").eq("user_id",user.id).is("disabled_at",null);
       if (roleError) { setError(roleError.message); setLoading(false); return; }
       const roleIds=(roles??[]).map((r)=>r.role_id as string).filter((r)=>r!=="USER");
@@ -84,11 +82,20 @@ export default function ChatMonitorPage() {
       const set=new Set((perms??[]).map((p)=>p.permission_id as string));
       setPermissions(set);
       if (!set.has("messages.view")) { setError("ليس لديك صلاحية messages.view."); setLoading(false); return; }
-      await runSearch(undefined,true);
+      const {data:initialData,error:initialError}=await supabase.functions.invoke("chat-monitor-search",{body:{limit:75}});
+      if (initialError) setError(initialError.message);
+      else if (initialData?.error) setError(String(initialData.error));
+      else {
+        const rows=(initialData?.data ?? []) as MessageRow[];
+        setMessages(rows);
+        refreshConversations(rows);
+        setSelectedConversationId(rows[0]?.conversation_id ?? "");
+        setSelectedMessageId(rows[0]?.id ?? "");
+      }
       setLoading(false);
     });
     return ()=>{alive=false;};
-  },[supabase,router,runSearch]);
+  },[supabase,router,refreshConversations]);
 
   const selectedMessage=useMemo(()=>messages.find((m)=>m.id===selectedMessageId)??null,[messages,selectedMessageId]);
   const visibleMessages=useMemo(()=>messages.filter((m)=>m.conversation_id===selectedConversationId),[messages,selectedConversationId]);
@@ -117,7 +124,7 @@ export default function ChatMonitorPage() {
       {!permissions.has("messages.search")&&<p className="muted">حسابك يملك عرض الرسائل فقط؛ البحث المتقدم يتطلب messages.search.</p>}
       <div className="monitor-layout">
         <aside className="panel monitor-list"><h2 className="section-title" style={{marginTop:0}}>المحادثات</h2>
-          {conversationList.map((c)=><button key={c.id} className={"conversation-option "+(selectedConversationId===c.id?"chosen":"")} onClick={()=>{setSelectedConversationId(c.id);void runSearch({conversationId:c.id},false);}}><strong>{c.title}</strong><span>{c.kind} · {c.count} رسالة</span><small>{new Date(c.latest).toLocaleString("ar")}</small></button>)}
+          {conversationList.map((c)=><button key={c.id} className={"conversation-option "+(selectedConversationId===c.id?"chosen":"")} onClick={()=>{setSelectedConversationId(c.id);void runSearch({conversationId:c.id},false);}}><strong>{c.title}</strong><span>{c.kind} · {c.count} رسالة في النتائج</span><small>{new Date(c.latest).toLocaleString("ar")}</small></button>)}
           {!conversationList.length&&<p className="muted">لا توجد محادثات ضمن النتائج.</p>}
         </aside>
         <section className="panel monitor-thread"><h2 className="section-title" style={{marginTop:0}}>الرسائل ({visibleMessages.length})</h2>
@@ -133,6 +140,5 @@ export default function ChatMonitorPage() {
         </aside>
       </div>
     </>}
-    <div style={{display:"none"}}>{userId}</div>
   </div>;
 }
