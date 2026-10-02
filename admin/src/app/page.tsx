@@ -44,7 +44,7 @@ export default function AdminHome() {
         granted.has("messages.view") ? supabase.from("messages").select("id",{count:"exact",head:true}) : Promise.resolve({count:null,error:null}),
         granted.has("wallet.view") ? supabase.from("wallets").select("coins") : Promise.resolve({data:null,error:null}),
         supabase.from("profiles").select("id",{count:"exact",head:true}).gt("vip_level",0),
-        granted.has("agencies.manage") ? supabase.from("agencies").select("id",{count:"exact",head:true}) : Promise.resolve({count:null,error:null}),
+        Promise.resolve({count:null,error:null}),
         granted.has("rooms.view") ? supabase.from("rooms").select("id,name,status,created_at").order("created_at",{ascending:false}).limit(6) : Promise.resolve({data:[],error:null}),
       ]);
       for (const result of [usersResult,roomsResult,messagesResult,walletResult,vipResult,agenciesResult,roomList]) if (result.error) throw result.error;
@@ -56,7 +56,7 @@ export default function AdminHome() {
         {label:ar?"الرسائل المخزنة":"Stored messages",value:messagesResult.count ?? "—",note:granted.has("messages.view")?(ar?"بحسب صلاحيتك":"Based on your permission"):(ar?"تحتاج صلاحية messages.view":"Requires messages.view")},
         {label:ar?"إجمالي Coins":"Total Coins",value:granted.has("wallet.view")?coinSum.toLocaleString():"—",note:ar?"أرصدة المحافظ":"Wallet balances"},
         {label:ar?"مستخدمو VIP":"VIP users",value:vipResult.count ?? "—",note:ar?"مستوى VIP أكبر من صفر":"VIP level above zero"},
-        {label:ar?"الوكالات":"Agencies",value:agenciesResult.count ?? "—",note:granted.has("agencies.manage")?(ar?"الوصول مسموح":"Access granted"):(ar?"تحتاج صلاحية مستقلة":"Separate permission required")},
+        {label:ar?"الوكالات":"Agencies",value:agenciesResult.count ?? "—",note:ar?"سيُفعّل بعد إضافة وحدة الوكالات":"Available after the agencies module is added"},
       ]);
       setRecentRooms((roomList.data ?? []) as RoomRow[]);
     } catch (e) { setError(e instanceof Error ? e.message : "Failed to load dashboard"); }
