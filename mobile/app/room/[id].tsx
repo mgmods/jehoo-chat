@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 type RoomRow = { id:string; name:string; description:string; status:"active"|"locked"|"closed"; owner_id:string; livekit_room_name:string };
 type SeatRow = { room_id:string; seat_number:number; status:"empty"|"occupied"|"locked"|"reserved"; user_id:string|null; reserved_for:string|null };
 type ProfileRow = { id:string; display_name:string; avatar_url:string; level:number; vip_level:number };
+type MicRequestRow = { id:string; user_id:string; created_at:string; profiles?:{display_name:string}|null };
 
 export default function VoiceRoomRoute() {
   const params = useLocalSearchParams<{id:string}>();
@@ -22,6 +23,8 @@ export default function VoiceRoomRoute() {
   const [isHost, setIsHost] = useState(false);
   const [micRequestBusy, setMicRequestBusy] = useState(false);
   const [micRequestSent, setMicRequestSent] = useState(false);
+  const [pendingMicRequests, setPendingMicRequests] = useState<MicRequestRow[]>([]);
+  const [handlingRequest, setHandlingRequest] = useState<string|null>(null);
 
   const loadRoom = useCallback(async () => {
     if (!supabase || !roomId) { setError("Supabase or room ID is missing."); setLoading(false); return; }
@@ -45,7 +48,15 @@ export default function VoiceRoomRoute() {
       setProfiles(map);
     } else setProfiles({});
     const { data: { user } } = await supabase.auth.getUser();
-    setIsHost(Boolean(user && user.id === roomData.owner_id));
+    const host = Boolean(user && user.id === roomData.owner_id);
+    setIsHost(host);
+    if (host) {
+      const { data: requests } = await supabase.from("room_requests")
+        .select("id,user_id,created_at,profiles(display_name)")
+        .eq("room_id", roomId).eq("request_type", "microphone").eq("status", "pending")
+        .order("created_at", { ascending: true });
+      setPendingMicRequests((requests ?? []) as unknown as MicRequestRow[]);
+    } else setPendingMicRequests([]);
     setLoading(false);
   },[roomId]);
 
@@ -54,6 +65,7 @@ export default function VoiceRoomRoute() {
     if (!supabase || !roomId) return;
     const channel = supabase.channel("room-seats-" + roomId)
       .on("postgres_changes",{event:"*",schema:"public",table:"room_seats",filter:"room_id=eq."+roomId},() => { void loadRoom(); })
+      .on("postgres_changes",{event:"*",schema:"public",table:"room_requests",filter:"room_id=eq."+roomId},() => { void loadRoom(); })
       .subscribe();
     return () => { void supabase.removeChannel(channel); };
   },[roomId,loadRoom]);
@@ -84,6 +96,17 @@ export default function VoiceRoomRoute() {
       else { setMicRequestSent(false); void loadRoom(); }
     }
   }
+  async function handleMicrophoneRequest(requestId:string, accept:boolean) {
+    if (!supabase) return;
+    setHandlingRequest(requestId); setError("");
+    try {
+      const { error: handleError } = await supabase.rpc("jehoo_handle_microphone_request", { p_request_id: requestId, p_accept: accept });
+      if (handleError) throw handleError;
+      await loadRoom();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "تعذر معالجة طلب المايك");
+    } finally { setHandlingRequest(null); }
+  }
   async function requestMicrophone() {
     if (!supabase || !room) return;
     setMicRequestBusy(true); setError("");
@@ -113,6 +136,7 @@ export default function VoiceRoomRoute() {
           {live ? <LiveKitRoom serverUrl={live.url} token={live.token} connect={true} audio={true} video={false} onDisconnected={() => { setLive(null); void AudioSession.stopAudioSession().catch(() => undefined); }}><View style={s.connected}><Text style={s.connectedText}>اتصال LiveKit نشط</Text>{!isHost ? <Pressable disabled={micRequestBusy || micRequestSent} onPress={() => void requestMicrophone()} style={[s.primary,{opacity:micRequestSent?0.65:1}]}>{micRequestBusy?<ActivityIndicator color="#06251E"/>:<Text style={s.primaryText}>{micRequestSent?"تم إرسال طلب المايك":"طلب المايك"}</Text>}</Pressable> : null}<Pressable onPress={() => void leaveVoice()} style={s.primary}><Text style={s.primaryText}>مغادرة الغرفة</Text></Pressable></View></LiveKitRoom> : <Pressable disabled={busy || room?.status==="closed"} onPress={() => void joinVoice()} style={s.primary}>{busy?<ActivityIndicator color="#06251E"/>:<Text style={s.primaryText}>الانضمام للصوت</Text>}</Pressable>}
         </View>
         {error ? <Text style={s.error}>{error}</Text> : null}
+        {isHost && pendingMicRequests.length > 0 ? <View style={s.section}><Text style={s.sectionTitle}>طلبات المايك · {pendingMicRequests.length}</Text>{pendingMicRequests.map((request) => <View key={request.id} style={s.requestRow}><View style={{flex:1}}><Text style={s.requestName}>{request.profiles?.display_name || "مستخدم"}</Text><Text style={s.requestSub}>يريد التحدث</Text></View><Pressable disabled={handlingRequest===request.id} onPress={() => void handleMicrophoneRequest(request.id,false)} style={s.rejectButton}><Text style={s.rejectText}>رفض</Text></Pressable><Pressable disabled={handlingRequest===request.id} onPress={() => void handleMicrophoneRequest(request.id,true)} style={s.acceptButton}>{handlingRequest===request.id?<ActivityIndicator color="#06251E"/>:<Text style={s.acceptText}>قبول</Text>}</Pressable></View>)}</View> : null}
         <View style={s.section}><Text style={s.sectionTitle}>المقاعد الصوتية · 20</Text><View style={s.grid}>{sortedSeats.map((seat) => {
           const person = seat.user_id ? profiles[seat.user_id] : null;
           const reserved = seat.reserved_for ? profiles[seat.reserved_for] : null;
@@ -146,5 +170,6 @@ const s=StyleSheet.create({
  seatLocked:{borderColor:"#6B7280",backgroundColor:"#1C222B"},seatOccupied:{borderColor:"#31D6B0"},
  avatar:{width:40,height:40,borderRadius:20,alignItems:"center",justifyContent:"center",backgroundColor:"#1C3934"},avatarText:{fontSize:19,color:"#DFFCF3"},
  seatName:{fontSize:10,color:"#D7E2E9",maxWidth:"100%"},vip:{fontSize:9,color:"#F5CB74",fontWeight:"800"},level:{fontSize:9,color:"#94A3B8"},
+ requestRow:{flexDirection:"row",alignItems:"center",gap:8,backgroundColor:"#121B25",padding:12,borderRadius:12,borderWidth:1,borderColor:"#263342"},requestName:{color:"#F2F7FA",fontWeight:"700",textAlign:"right"},requestSub:{color:"#94A3B8",fontSize:11,textAlign:"right",marginTop:3},rejectButton:{paddingVertical:9,paddingHorizontal:12,borderRadius:10,backgroundColor:"#40242A"},rejectText:{color:"#FDA4AF",fontWeight:"800"},acceptButton:{minWidth:60,alignItems:"center",justifyContent:"center",paddingVertical:9,paddingHorizontal:12,borderRadius:10,backgroundColor:"#31D6B0"},acceptText:{color:"#06251E",fontWeight:"800"},
  center:{alignItems:"center",padding:30,gap:12},error:{color:"#FDA4AF",textAlign:"center"},mint:{color:"#31D6B0"}
 });
