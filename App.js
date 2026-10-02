@@ -55,7 +55,13 @@ export default function App() {
   const [room, setRoom] = useState(null);
   const [auth, setAuth] = useState(false);
   const [session, setSession] = useState(null);
-  useEffect(() => {\n    if (!supabase) return;\n    supabase.auth.getSession().then(({ data }) => setSession(data.session));\n    const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => setSession(nextSession));\n    return () => listener.subscription.unsubscribe();\n  }, []);
+  useEffect(() => {
+    if (!supabase) return;
+    let mounted = true;
+    supabase.auth.getSession().then(({ data }) => { if (mounted) setSession(data.session); });
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => setSession(nextSession));
+    return () => { mounted = false; listener.subscription.unsubscribe(); };
+  }, []);
   return <SafeAreaView style={s.safe}><StatusBar barStyle="dark-content" backgroundColor={C.bg} />
     {auth ? <><Pressable onPress={() => setAuth(false)} style={{ padding: 16 }}><Text style={{ color: C.green }}>رجوع</Text></Pressable><AuthScreen onDone={(nextSession) => { setSession(nextSession); setAuth(false); setTab('أنا'); }} /></> : room ? <VoiceRoomScreen room={room} onBack={() => setRoom(null)} /> : tab === 'الرئيسية' ? <Home openRoom={setRoom} /> : tab === 'الرسائل' ? <Messages /> : <ProfileScreen session={session} onSignIn={() => setAuth(true)} />}
     {!room && !auth && <View style={s.nav}>{[['الرئيسية','⌂'],['الرسائل','●'],['أنا','☺']].map(item => <Pressable key={item[0]} onPress={() => setTab(item[0])} style={s.navItem}><Text style={{ fontSize: 24, color: tab === item[0] ? C.green : '#A8B6B2' }}>{item[1]}</Text><Text style={{ fontSize: 11, color: tab === item[0] ? C.green : C.muted }}>{item[0]}</Text></Pressable>)}<Pressable onPress={() => setAuth(true)} style={s.navItem}><Text style={{ fontSize: 24 }}>↗</Text><Text style={s.muted}>دخول</Text></Pressable></View>}
