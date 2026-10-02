@@ -21,6 +21,22 @@ begin
   if not has_function_privilege('service_role','public.jehoo_apply_wallet_adjustment(uuid,uuid,bigint,text,text)','EXECUTE') then
     raise exception 'FAIL: service role cannot call wallet adjustment RPC';
   end if;
+  if has_function_privilege('anon','public.jehoo_join_room(uuid)','EXECUTE')
+     or has_function_privilege('anon','public.jehoo_leave_room(uuid)','EXECUTE')
+     or has_function_privilege('anon','public.jehoo_request_microphone(uuid)','EXECUTE')
+     or has_function_privilege('anon','public.jehoo_handle_microphone_request(uuid,boolean)','EXECUTE') then
+    raise exception 'FAIL: anonymous users can call room RPCs';
+  end if;
+  if (select prosecdef from pg_proc where oid='public.jehoo_join_room(uuid)'::regprocedure)
+     or (select prosecdef from pg_proc where oid='public.jehoo_leave_room(uuid)'::regprocedure)
+     or (select prosecdef from pg_proc where oid='public.jehoo_request_microphone(uuid)'::regprocedure)
+     or (select prosecdef from pg_proc where oid='public.jehoo_handle_microphone_request(uuid,boolean)'::regprocedure) then
+    raise exception 'FAIL: public room RPC wrapper must not be SECURITY DEFINER';
+  end if;
+  if not has_function_privilege('authenticated','public.jehoo_join_room(uuid)','EXECUTE')
+     or not has_function_privilege('authenticated','public.jehoo_request_microphone(uuid)','EXECUTE') then
+    raise exception 'FAIL: authenticated room RPC permissions are missing';
+  end if;
   if has_function_privilege('authenticated','private.is_conversation_member(uuid,uuid)','EXECUTE') then
     raise exception 'FAIL: clients can inspect membership for arbitrary user IDs';
   end if;
