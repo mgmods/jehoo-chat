@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Alert, FlatList, Pressable, SafeAreaView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, Pressable, SafeAreaView, StyleSheet, Text, View } from "react-native";
+import { useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import { makeRedirectUri } from "expo-auth-session";
 import type { Session } from "@supabase/supabase-js";
@@ -11,6 +12,7 @@ WebBrowser.maybeCompleteAuthSession();
 type Room = { id: string; name: string; description: string; status: "active" | "locked" | "closed"; is_featured: boolean; created_at: string };
 
 export default function HomeScreen() {
+  const router = useRouter();
   const [locale, setLocale] = useState<Locale>("ar");
   const [session, setSession] = useState<Session | null>(null);
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -97,7 +99,7 @@ export default function HomeScreen() {
       <View style={s.sectionHeader}><View><Text style={s.sectionTitle}>{ar ? "الغرف الصوتية" : "Voice rooms"}</Text><Text style={s.subtitle}>{ar ? "بيانات مباشرة من قاعدة البيانات" : "Live data from your database"}</Text></View><Pressable onPress={signOut} style={s.secondary}><Text style={s.secondaryText}>{copy.signOut}</Text></Pressable></View>
       {loading ? <ActivityIndicator style={{ marginTop: 32 }} color="#31D6B0" /> : error ? <View style={s.empty}><Text style={s.error}>{error}</Text><Pressable onPress={() => void loadRooms()}><Text style={s.mint}>{ar ? "إعادة المحاولة" : "Retry"}</Text></Pressable></View> :
       <FlatList data={rooms} keyExtractor={(item) => item.id} contentContainerStyle={s.list} ListEmptyComponent={<View style={s.empty}><Text style={s.emptyTitle}>{ar ? "لا توجد غرف بعد" : "No rooms yet"}</Text><Text style={s.subtitle}>{ar ? "عندما تُنشأ غرف في الخادم ستظهر هنا." : "Rooms created on the backend will appear here."}</Text></View>}
-        renderItem={({ item }) => <View style={s.room}><View style={s.roomIcon}><Text style={s.roomEmoji}>🎙</Text></View><View style={s.roomInfo}><Text style={s.roomName}>{item.name}</Text><Text style={s.subtitle} numberOfLines={2}>{item.description || (ar ? "غرفة صوتية على جيهو" : "JEHOO voice room")}</Text></View><View style={[s.status,{borderColor:item.status==="active"?"#31D6B0":"#E8B86D"}]}><Text style={{color:item.status==="active"?"#31D6B0":"#E8B86D",fontSize:11}}>{item.status==="active"?(ar?"نشطة":"Active"):(ar?"مقفلة":"Locked")}</Text></View></View>} />}
+        renderItem={({ item }) => <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: "/room/[id]", params: { id: item.id } })} style={s.room}><View style={s.roomIcon}><Text style={s.roomEmoji}>🎙</Text></View><View style={s.roomInfo}><Text style={s.roomName}>{item.name}</Text><Text style={s.subtitle} numberOfLines={2}>{item.description || (ar ? "غرفة صوتية على جيهو" : "JEHOO voice room")}</Text></View><View style={[s.status,{borderColor:item.status==="active"?"#31D6B0":"#E8B86D"}]}><Text style={{color:item.status==="active"?"#31D6B0":"#E8B86D",fontSize:11}}>{item.status==="active"?(ar?"نشطة":"Active"):(ar?"مقفلة":"Locked")}</Text></View></Pressable>} />}
     </>}
     {error && session && <Text style={s.error}>{error}</Text>}
   </SafeAreaView>;
