@@ -13,7 +13,7 @@ const palette = { green: '#18C9A5', dark: '#07372F', bg: '#F3F7F5', ink: '#19312
  * The backend must authenticate the user and issue a short-lived LiveKit token.
  * Never place LiveKit API secrets in the mobile app.
  */
-export default function VoiceRoomScreen({ room, onBack }) {
+export default function VoiceRoomScreen({ room, session, onBack, onSignIn }) {
   const [endpoint, setEndpoint] = useState(process.env.EXPO_PUBLIC_VOICE_TOKEN_URL || '');
   const [live, setLive] = useState(null);
   const [error, setError] = useState('');
@@ -21,6 +21,10 @@ export default function VoiceRoomScreen({ room, onBack }) {
 
   async function connect() {
     setError('');
+    if (!session?.access_token) {
+      setError('سجّل الدخول أولاً للانضمام إلى غرفة صوتية.');
+      return;
+    }
     if (!endpoint.trim()) {
       setError('أضف رابط خدمة إصدار رمز الصوت في إعدادات البيئة أولاً.');
       return;
@@ -29,8 +33,9 @@ export default function VoiceRoomScreen({ room, onBack }) {
     try {
       const response = await fetch(endpoint.trim(), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ roomName: room.name, identity: 'jehoo-mobile-user' }),
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        // The trusted token service must derive the participant identity from the verified JWT.
+        body: JSON.stringify({ roomName: room.name }),
       });
       if (!response.ok) throw new Error('تعذر الحصول على رمز الغرفة من الخادم.');
       const data = await response.json();
@@ -47,6 +52,7 @@ export default function VoiceRoomScreen({ room, onBack }) {
   return <View style={styles.page}>
     <View style={styles.top}><Pressable onPress={onBack}><Text style={styles.back}>رجوع ‹</Text></Pressable><Text style={styles.title}>{room.name}</Text><Text style={styles.sub}>غرفة صوتية · Jehoo</Text></View>
     <ScrollView contentContainerStyle={styles.body}>
+      {!session?.access_token && <Pressable style={styles.cta} onPress={onSignIn}><Text style={styles.ctaText}>تسجيل الدخول للانضمام</Text></Pressable>}
       <View style={styles.stage}><Text style={{ fontSize: 48 }}>🎙️</Text><Text style={styles.heading}>{live ? 'جارٍ الانضمام إلى الغرفة' : 'اجتمعوا بالصوت'}</Text><Text style={styles.muted}>غرف صوتية بتصميم قابل للتوسّع</Text>
         {live ? <LiveKitRoom serverUrl={live.url} token={live.token} connect={true} audio={true} video={false} onDisconnected={() => { setLive(null); AudioSession.stopAudioSession().catch(() => {}); }}>
           <ConnectedRoom onLeave={() => { setLive(null); AudioSession.stopAudioSession().catch(() => {}); }} />
