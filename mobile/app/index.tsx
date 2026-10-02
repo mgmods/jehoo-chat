@@ -5,7 +5,7 @@ import * as WebBrowser from "expo-web-browser";
 import { makeRedirectUri } from "expo-auth-session";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
-import { messages, type Locale } from "@jehoo/shared";
+import { messages, type Locale } from "../../packages/shared/src/index";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -27,13 +27,20 @@ export default function HomeScreen() {
   const ar = locale === "ar";
 
   useEffect(() => {
-    if (!supabase) { setLoading(false); setError(copy.configurationRequired); return; }
-    supabase.auth.getSession().then(({ data, error: authError }) => {
+    const client = supabase;
+    if (!client) { setLoading(false); setError(copy.configurationRequired); return; }
+    let active = true;
+    client.auth.getSession().then(({ data, error: authError }) => {
+      if (!active) return;
       if (authError) setError(authError.message);
       setSession(data.session);
+    }).catch((authError: unknown) => {
+      if (active) setError(authError instanceof Error ? authError.message : "Authentication initialization failed.");
     });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => setSession(nextSession));
-    return () => subscription.unsubscribe();
+    const { data: { subscription } } = client.auth.onAuthStateChange((_event, nextSession) => {
+      if (active) setSession(nextSession);
+    });
+    return () => { active = false; subscription.unsubscribe(); };
   }, [copy.configurationRequired]);
 
 
