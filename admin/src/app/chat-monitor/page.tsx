@@ -60,9 +60,13 @@ export default function ChatMonitorPage() {
       else {
         const rows=(data?.data ?? []) as MessageRow[];
         setMessages(rows);
-        if (updateList) refreshConversations(rows);
+        if (updateList) {
+          refreshConversations(rows);
+          setSelectedConversationId(rows[0]?.conversation_id ?? "");
+        } else if (!selectedConversationId && rows[0]?.conversation_id) {
+          setSelectedConversationId(rows[0].conversation_id);
+        }
         if (!selectedMessageId || !rows.some((m)=>m.id===selectedMessageId)) setSelectedMessageId(rows[0]?.id ?? "");
-        if (!selectedConversationId && rows[0]?.conversation_id) setSelectedConversationId(rows[0].conversation_id);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "فشل تحميل الرسائل.");
