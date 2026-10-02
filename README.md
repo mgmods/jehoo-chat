@@ -21,7 +21,8 @@ npx expo start
 Scan the QR code with Expo Go, or use `npm run android` / `npm run ios`. Local iOS builds require macOS and Xcode.
 
 ## Production services to add
-- Auth and database: Supabase Auth + PostgreSQL (or equivalent) with row-level security.
+- Auth and database: Supabase Auth + PostgreSQL with row-level security. Email/password and Google ID-token sign-in UI are integrated; provider setup is required.
+- Profile: editable display name, bio, country and avatar URL stored in a `profiles` table when configured.
 - Realtime chat/presence: Supabase Realtime or authenticated WebSockets.
 - Voice: LiveKit React Native client is wired in. Deploy a trusted token endpoint and configure `EXPO_PUBLIC_VOICE_TOKEN_URL` to return `{ "serverUrl": "wss://...", "participantToken": "..." }`. The endpoint must authenticate users and mint short-lived room-scoped tokens; never ship API secrets in the app. LiveKit Cloud or a self-hosted LiveKit server is required.
 - Media: private object storage and signed URLs.
