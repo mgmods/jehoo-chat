@@ -6,7 +6,7 @@ import { messages, type Locale } from "@jehoo/shared";
 
 type Stat = { label: string; value: string | number; note: string };
 type RoomRow = { id: string; name: string; status: string; created_at: string };
-const navLabels = { ar: ["لوحة التحكم","المستخدمون","الغرف الصوتية","مراقبة المحادثات","البلاغات","الإعدادات"], en: ["Dashboard","Users","Voice Rooms","Chat Monitoring","Reports","Settings"] };
+const navLabels = { ar: ["لوحة التحكم","المستخدمون","الغرف الصوتية","مراقبة المحادثات","البلاغات","الهدايا","VIP","المحافظ","المعاملات","المتجر","الوكالات","البنرات","الفعاليات","التصنيفات","الإشعارات","الدعم","الموظفون","سجل التدقيق","الإعدادات"], en: ["Dashboard","Users","Voice Rooms","Chat Monitoring","Reports","Gifts","VIP","Wallets","Transactions","Store","Agencies","Banners","Events","Rankings","Notifications","Support","Staff","Audit Logs","Settings"] };
 
 export default function AdminHome() {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
@@ -96,7 +96,7 @@ export default function AdminHome() {
 
   return <div className="dashboard" dir={ar?"rtl":"ltr"}>
     <aside className="sidebar"><div className="brand">JEHOO <span>●</span></div><div className="nav">
-      {nav.map((label,index)=>index===0?<a key={label} href="#dashboard" className="active">{label}</a>:<span key={label} className="nav-disabled" aria-disabled="true">{label}</span>)}
+      {nav.map((label,index)=>index===0?<a key={label} href="#dashboard" className="active">{label}</a>:index===3 && permissions.has("messages.view")?<a key={label} href="/chat-monitor">{label}</a>:<span key={label} className="nav-disabled" aria-disabled="true">{label}</span>)}
     </div><div style={{marginTop:24}} className="muted">{ar?"الدور الحالي":"Current role"}: <span className="pill">{role}</span></div></aside>
     <main className="main" id="dashboard">
       <div className="topbar"><div><h1 style={{margin:"0 0 6px"}}>{copy.dashboard}</h1><div className="muted">{copy.dashboardSubtitle}</div></div><div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}><button className="secondary" onClick={()=>setLocale(ar?"en":"ar")}>{ar?"English":"العربية"}</button><button className="secondary" onClick={()=>void loadDashboard(user.id)}>{ar?"تحديث":"Refresh"}</button><button className="secondary" onClick={signOut}>{copy.signOut}</button></div></div>
