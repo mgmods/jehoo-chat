@@ -21,6 +21,12 @@ begin
   if not has_function_privilege('service_role','public.jehoo_apply_wallet_adjustment(uuid,uuid,bigint,text,text)','EXECUTE') then
     raise exception 'FAIL: service role cannot call wallet adjustment RPC';
   end if;
+  if has_function_privilege('authenticated','private.is_conversation_member(uuid,uuid)','EXECUTE') then
+    raise exception 'FAIL: clients can inspect membership for arbitrary user IDs';
+  end if;
+  if not has_function_privilege('authenticated','private.is_current_user_conversation_member(uuid)','EXECUTE') then
+    raise exception 'FAIL: RLS membership helper is not executable by authenticated role';
+  end if;
   if not (select relrowsecurity from pg_class where oid='public.messages'::regclass) then
     raise exception 'FAIL: messages RLS is disabled';
   end if;
