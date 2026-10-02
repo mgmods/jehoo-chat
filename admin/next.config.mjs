@@ -1,4 +1,4 @@
-const path = require("path");
+import path from "node:path";
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -6,4 +6,4 @@ const nextConfig = {
   transpilePackages: ["@jehoo/shared"],
   outputFileTracingRoot: path.join(process.cwd(), ".."),
 };
-module.exports = nextConfig;
+export default nextConfig;
