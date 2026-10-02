@@ -41,9 +41,15 @@ export default function ProfileScreen({ session, onSignIn }) {
     }
     setLoading(true);
     const payload = { id: user.id, display_name: displayName.trim(), bio: bio.trim(), country: country.trim(), avatar_url: avatarUrl.trim(), updated_at: new Date().toISOString() };
-    const { error } = await supabase.from('profiles').upsert(payload, { onConflict: 'id' });
+    const editable = { display_name: payload.display_name, bio: payload.bio, country: payload.country, avatar_url: payload.avatar_url, updated_at: payload.updated_at };
+    let { data, error } = await supabase.from('profiles').update(editable).eq('id', user.id).select('id').maybeSingle();
+    if (!error && !data) {
+      // The auth trigger normally creates this row. Recover if a profile is missing.
+      const inserted = await supabase.from('profiles').insert({ id: user.id, ...editable }).select('id').maybeSingle();
+      error = inserted.error;
+    }
     setLoading(false);
-    if (error) Alert.alert('تعذّر الحفظ', 'تأكد من إنشاء جدول profiles وسياسات RLS الموضحة في README.');
+    if (error) Alert.alert('تعذّر الحفظ', 'تأكد من إعداد جدول profiles وسياسات الوصول في Supabase.');
     else { setEditing(false); Alert.alert('تم الحفظ', 'تم تحديث ملفك الشخصي.'); }
   }
 
