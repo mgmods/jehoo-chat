@@ -1,0 +1,10 @@
+project_id = "nxptedmacsdqnehcatpi"
+
+[functions.livekit-token]
+verify_jwt = true
+
+[functions.wallet-admin-adjust]
+verify_jwt = true
+
+[functions.chat-monitor-search]
+verify_jwt = true
