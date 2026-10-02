@@ -17,6 +17,9 @@
     "@livekit/react-native": "^2.5.0",
     "livekit-client": "^2.9.6",
     "@livekit/react-native-webrtc": "^124.0.5",
-    "expo-dev-client": "~5.0.20"
+    "expo-dev-client": "~5.0.20",
+    "@supabase/supabase-js": "^2.49.1",
+    "expo-auth-session": "~6.0.3",
+    "expo-web-browser": "~14.0.2"
   }
 }
