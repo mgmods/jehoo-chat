@@ -46,9 +46,10 @@ export default function HomeScreen() {
 
 
   const loadRooms = useCallback(async () => {
-    if (!supabase || !session) { setRooms([]); setLoading(false); return; }
+    const client = supabase;
+    if (!client || !session) { setRooms([]); setLoading(false); return; }
     setLoading(true); setError("");
-    const { data, error: queryError } = await supabase.from("rooms")
+    const { data, error: queryError } = await client.from("rooms")
       .select("id,name,description,status,is_featured,created_at")
       .neq("status", "closed").order("is_featured", { ascending: false }).order("created_at", { ascending: false }).limit(30);
     if (queryError) setError(queryError.message);
@@ -59,12 +60,13 @@ export default function HomeScreen() {
   useEffect(() => { void loadRooms(); }, [loadRooms]);
 
   async function signIn() {
-    if (!supabase) { setError(copy.configurationRequired); return; }
+    const client = supabase;
+    if (!client) { setError(copy.configurationRequired); return; }
     setError("");
     setAuthBusy(true);
     try {
       const redirectTo = makeRedirectUri({ scheme: "jehoochat", path: "auth/callback" });
-      const { data, error: oauthError } = await supabase.auth.signInWithOAuth({
+      const { data, error: oauthError } = await client.auth.signInWithOAuth({
         provider: "google",
         options: { redirectTo, skipBrowserRedirect: true },
       });
@@ -79,10 +81,10 @@ export default function HomeScreen() {
       const refreshToken = params.get("refresh_token") ?? hashParams.get("refresh_token");
       const code = params.get("code");
       if (code) {
-        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+        const { error: exchangeError } = await client.auth.exchangeCodeForSession(code);
         if (exchangeError) throw exchangeError;
       } else if (accessToken && refreshToken) {
-        const { error: sessionError } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+        const { error: sessionError } = await client.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
         if (sessionError) throw sessionError;
       } else {
         const authError = params.get("error_description") ?? hashParams.get("error_description");
@@ -95,7 +97,8 @@ export default function HomeScreen() {
     }
   }
   async function createRoom() {
-    if (!supabase) return;
+    const client = supabase;
+    if (!client) return;
     const name = roomName.trim();
     if (name.length < 2 || name.length > 80) {
       setError(ar ? "اسم الغرفة يجب أن يكون بين حرفين و80 حرفاً." : "Room name must be between 2 and 80 characters.");
@@ -107,7 +110,7 @@ export default function HomeScreen() {
     }
     setCreateBusy(true); setError("");
     try {
-      const { data, error: createError } = await supabase.rpc("jehoo_create_room", { p_name: name, p_description: roomDescription.trim() });
+      const { data, error: createError } = await client.rpc("jehoo_create_room", { p_name: name, p_description: roomDescription.trim() });
       if (createError) throw createError;
       const created = data as { id?: string } | null;
       if (!created?.id) throw new Error(ar ? "لم يصل معرّف الغرفة من الخادم." : "No room ID returned from server.");
@@ -120,8 +123,9 @@ export default function HomeScreen() {
   }
 
   async function signOut() {
-    if (!supabase) return;
-    const { error: signOutError } = await supabase.auth.signOut();
+    const client = supabase;
+    if (!client) return;
+    const { error: signOutError } = await client.auth.signOut();
     if (signOutError) setError(signOutError.message);
   }
 
