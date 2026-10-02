@@ -1,5 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import VoiceRoomScreen from './VoiceRoomScreen';
+import AuthScreen from './AuthScreen';
+import ProfileScreen from './ProfileScreen';
+import { supabase } from './supabaseClient';
 import { SafeAreaView, View, Text, ScrollView, Pressable, TextInput, StatusBar, StyleSheet } from 'react-native';
 
 const C = { green: '#18C9A5', dark: '#07372F', bg: '#F3F7F5', ink: '#19312C', muted: '#82918D', white: '#FFFFFF' };
@@ -44,26 +47,17 @@ function Room({ room, back }) {
     </ScrollView>
   </>;
 }
-function Profile() {
-  return <><Header title="ملفي الشخصي" subtitle="حسابك على Jehoo" /><ScrollView contentContainerStyle={s.pad}>
-    <View style={s.profile}><Text style={{ fontSize: 52 }}>🙂</Text><Text style={s.heroTitle}>عضو Jehoo</Text><Text style={s.muted}>عضو جديد · 🌍 غير محدد</Text><Button active>تعديل الملف الشخصي</Button></View>
-    <View style={s.row}>{[['0','أصدقاء'],['0','متابعون'],['1','المستوى']].map(item => <View key={item[1]} style={s.stat}><Text style={s.heading}>{item[0]}</Text><Text style={s.muted}>{item[1]}</Text></View>)}</View>
-    {['🎁 الهدايا والمقتنيات','🪙 المحفظة والعملات','👑 عضوية VIP','🏢 الوكالات','⚙️ الإعدادات والخصوصية','🛡️ الأمان والإبلاغ'].map(item => <View key={item} style={s.menu}><Text style={s.roomName}>{item}</Text><Text style={s.chev}>‹</Text></View>)}
-  </ScrollView></>;
-}
 function Messages() {
   return <><Header title="الرسائل" subtitle="ابقَ على تواصل" /><View style={s.empty}><Text style={{ fontSize: 42 }}>💬</Text><Text style={s.heading}>محادثاتك ستظهر هنا</Text><Text style={s.muted}>تحتاج الرسائل الحقيقية إلى حساب وخادم آمن.</Text></View></>;
-}
-function Auth() {
-  const [mode, setMode] = useState('تسجيل الدخول');
-  return <View style={s.auth}><Text style={s.brand}>Jehoo</Text><Text style={s.heading}>مرحباً بك في مجتمعك</Text><View style={s.row}><Button active={mode === 'تسجيل الدخول'} onPress={() => setMode('تسجيل الدخول')}>دخول</Button><Button active={mode === 'إنشاء حساب'} onPress={() => setMode('إنشاء حساب')}>إنشاء حساب</Button></View>{mode === 'إنشاء حساب' && <TextInput placeholder="الاسم المستعار" style={s.input} />}<TextInput placeholder="البريد الإلكتروني أو الهاتف" style={s.input} /><TextInput placeholder="كلمة المرور" secureTextEntry style={s.input} /><Pressable style={s.cta}><Text style={s.ctaText}>{mode}</Text></Pressable><Text style={s.muted}>واجهة تجريبية فقط؛ المصادقة غير مفعلة.</Text></View>;
 }
 export default function App() {
   const [tab, setTab] = useState('الرئيسية');
   const [room, setRoom] = useState(null);
   const [auth, setAuth] = useState(false);
+  const [session, setSession] = useState(null);
+  useEffect(() => {\n    if (!supabase) return;\n    supabase.auth.getSession().then(({ data }) => setSession(data.session));\n    const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => setSession(nextSession));\n    return () => listener.subscription.unsubscribe();\n  }, []);
   return <SafeAreaView style={s.safe}><StatusBar barStyle="dark-content" backgroundColor={C.bg} />
-    {auth ? <><Pressable onPress={() => setAuth(false)} style={{ padding: 16 }}><Text style={{ color: C.green }}>رجوع</Text></Pressable><Auth /></> : room ? <VoiceRoomScreen room={room} onBack={() => setRoom(null)} /> : tab === 'الرئيسية' ? <Home openRoom={setRoom} /> : tab === 'الرسائل' ? <Messages /> : <Profile />}
+    {auth ? <><Pressable onPress={() => setAuth(false)} style={{ padding: 16 }}><Text style={{ color: C.green }}>رجوع</Text></Pressable><AuthScreen onDone={(nextSession) => { setSession(nextSession); setAuth(false); setTab('أنا'); }} /></> : room ? <VoiceRoomScreen room={room} onBack={() => setRoom(null)} /> : tab === 'الرئيسية' ? <Home openRoom={setRoom} /> : tab === 'الرسائل' ? <Messages /> : <ProfileScreen session={session} onSignIn={() => setAuth(true)} />}
     {!room && !auth && <View style={s.nav}>{[['الرئيسية','⌂'],['الرسائل','●'],['أنا','☺']].map(item => <Pressable key={item[0]} onPress={() => setTab(item[0])} style={s.navItem}><Text style={{ fontSize: 24, color: tab === item[0] ? C.green : '#A8B6B2' }}>{item[1]}</Text><Text style={{ fontSize: 11, color: tab === item[0] ? C.green : C.muted }}>{item[0]}</Text></Pressable>)}<Pressable onPress={() => setAuth(true)} style={s.navItem}><Text style={{ fontSize: 24 }}>↗</Text><Text style={s.muted}>دخول</Text></Pressable></View>}
   </SafeAreaView>;
 }
