@@ -27,11 +27,11 @@ begin
      or has_function_privilege('anon','public.jehoo_handle_microphone_request(uuid,boolean)','EXECUTE') then
     raise exception 'FAIL: anonymous users can call room RPCs';
   end if;
-  if (select prosecdef from pg_proc where oid='public.jehoo_join_room(uuid)'::regprocedure)
-     or (select prosecdef from pg_proc where oid='public.jehoo_leave_room(uuid)'::regprocedure)
-     or (select prosecdef from pg_proc where oid='public.jehoo_request_microphone(uuid)'::regprocedure)
-     or (select prosecdef from pg_proc where oid='public.jehoo_handle_microphone_request(uuid,boolean)'::regprocedure) then
-    raise exception 'FAIL: public room RPC wrapper must not be SECURITY DEFINER';
+  if has_function_privilege('authenticated','private.jehoo_join_room(uuid)','EXECUTE')
+     or has_function_privilege('authenticated','private.jehoo_leave_room(uuid)','EXECUTE')
+     or has_function_privilege('authenticated','private.jehoo_request_microphone(uuid)','EXECUTE')
+     or has_function_privilege('authenticated','private.jehoo_handle_microphone_request(uuid,boolean)','EXECUTE') then
+    raise exception 'FAIL: authenticated users can call internal room RPCs directly';
   end if;
   if not has_function_privilege('authenticated','public.jehoo_join_room(uuid)','EXECUTE')
      or not has_function_privilege('authenticated','public.jehoo_request_microphone(uuid)','EXECUTE') then
