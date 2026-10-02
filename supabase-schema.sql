@@ -269,3 +269,6 @@ create policy "Users can send messages when not blocked" on public.direct_messag
 create policy "Participants can soft-delete messages for themselves" on public.direct_messages for update to authenticated
 using ((select auth.uid()) = sender_id or (select auth.uid()) = receiver_id)
 with check ((select auth.uid()) = sender_id or (select auth.uid()) = receiver_id);
+
+-- The public_id UNIQUE constraint already owns an index; remove the redundant duplicate.
+drop index if exists public.profiles_public_id_unique;
