@@ -45,17 +45,25 @@ end $$;
 -- Create a profile and public ID automatically for every new Supabase Auth account.
 create or replace function public.handle_new_jehoo_user()
 returns trigger language plpgsql security definer set search_path = public
-as $
+as $function$
 begin
   insert into public.profiles (id, display_name)
-  values (new.id, coalesce(new.raw_user_meta_data->>'full_name', new.raw_user_meta_data->>'name', split_part(coalesce(new.email, ''), '@', 1), 'عضو Jehoo'))
+  values (new.id, coalesce(new.raw_user_meta_data->>'display_name', new.raw_user_meta_data->>'full_name', new.raw_user_meta_data->>'name', split_part(coalesce(new.email, ''), '@', 1), 'عضو Jehoo'))
   on conflict (id) do nothing;
   return new;
 end;
-$;
+$function$;
 drop trigger if exists on_auth_user_created_jehoo_profile on auth.users;
 create trigger on_auth_user_created_jehoo_profile
 after insert on auth.users for each row execute function public.handle_new_jehoo_user();
+
+-- Backfill any existing Auth accounts that do not yet have a profile.
+insert into public.profiles (id, display_name)
+select u.id, coalesce(u.raw_user_meta_data->>'display_name', u.raw_user_meta_data->>'full_name', u.raw_user_meta_data->>'name', split_part(coalesce(u.email, ''), '@', 1), 'عضو Jehoo')
+from auth.users u
+left join public.profiles p on p.id = u.id
+where p.id is null
+on conflict (id) do nothing;
 
 create unique index if not exists profiles_public_id_unique on public.profiles(public_id);
 alter table public.profiles alter column public_id set not null;
