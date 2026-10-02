@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import VoiceRoomScreen from './VoiceRoomScreen';
 import { SafeAreaView, View, Text, ScrollView, Pressable, TextInput, StatusBar, StyleSheet } from 'react-native';
 
 const C = { green: '#18C9A5', dark: '#07372F', bg: '#F3F7F5', ink: '#19312C', muted: '#82918D', white: '#FFFFFF' };
@@ -62,7 +63,7 @@ export default function App() {
   const [room, setRoom] = useState(null);
   const [auth, setAuth] = useState(false);
   return <SafeAreaView style={s.safe}><StatusBar barStyle="dark-content" backgroundColor={C.bg} />
-    {auth ? <><Pressable onPress={() => setAuth(false)} style={{ padding: 16 }}><Text style={{ color: C.green }}>رجوع</Text></Pressable><Auth /></> : room ? <Room room={room} back={() => setRoom(null)} /> : tab === 'الرئيسية' ? <Home openRoom={setRoom} /> : tab === 'الرسائل' ? <Messages /> : <Profile />}
+    {auth ? <><Pressable onPress={() => setAuth(false)} style={{ padding: 16 }}><Text style={{ color: C.green }}>رجوع</Text></Pressable><Auth /></> : room ? <VoiceRoomScreen room={room} onBack={() => setRoom(null)} /> : tab === 'الرئيسية' ? <Home openRoom={setRoom} /> : tab === 'الرسائل' ? <Messages /> : <Profile />}
     {!room && !auth && <View style={s.nav}>{[['الرئيسية','⌂'],['الرسائل','●'],['أنا','☺']].map(item => <Pressable key={item[0]} onPress={() => setTab(item[0])} style={s.navItem}><Text style={{ fontSize: 24, color: tab === item[0] ? C.green : '#A8B6B2' }}>{item[1]}</Text><Text style={{ fontSize: 11, color: tab === item[0] ? C.green : C.muted }}>{item[0]}</Text></Pressable>)}<Pressable onPress={() => setAuth(true)} style={s.navItem}><Text style={{ fontSize: 24 }}>↗</Text><Text style={s.muted}>دخول</Text></Pressable></View>}
   </SafeAreaView>;
 }
