@@ -20,6 +20,8 @@ export default function VoiceRoomRoute() {
   const [live, setLive] = useState<{url:string;token:string}|null>(null);
   const [error, setError] = useState("");
   const [isHost, setIsHost] = useState(false);
+  const [micRequestBusy, setMicRequestBusy] = useState(false);
+  const [micRequestSent, setMicRequestSent] = useState(false);
 
   const loadRoom = useCallback(async () => {
     if (!supabase || !roomId) { setError("Supabase or room ID is missing."); setLoading(false); return; }
@@ -60,12 +62,15 @@ export default function VoiceRoomRoute() {
     if (!supabase || !room) return;
     setBusy(true); setError("");
     try {
+      const { error: joinError } = await supabase.rpc("jehoo_join_room", { p_room_id: room.id });
+      if (joinError) throw joinError;
       const { data, error: tokenError } = await supabase.functions.invoke("livekit-token",{body:{roomName:room.livekit_room_name}});
       if (tokenError) throw tokenError;
       if (!data?.serverUrl || !data?.participantToken) throw new Error("Voice token response is incomplete.");
       await AudioSession.startAudioSession();
       setLive({url:data.serverUrl,token:data.participantToken});
     } catch (e) {
+      if (supabase && room) await supabase.rpc("jehoo_leave_room", { p_room_id: room.id });
       setError(e instanceof Error ? e.message : "Unable to connect to the voice room.");
       await AudioSession.stopAudioSession().catch(() => undefined);
     } finally { setBusy(false); }
@@ -73,6 +78,22 @@ export default function VoiceRoomRoute() {
   async function leaveVoice() {
     setLive(null);
     await AudioSession.stopAudioSession().catch(() => undefined);
+    if (supabase && room) {
+      const { error: leaveError } = await supabase.rpc("jehoo_leave_room", { p_room_id: room.id });
+      if (leaveError) setError(leaveError.message);
+      else { setMicRequestSent(false); void loadRoom(); }
+    }
+  }
+  async function requestMicrophone() {
+    if (!supabase || !room) return;
+    setMicRequestBusy(true); setError("");
+    try {
+      const { error: requestError } = await supabase.rpc("jehoo_request_microphone", { p_room_id: room.id });
+      if (requestError) throw requestError;
+      setMicRequestSent(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "تعذر إرسال طلب المايك");
+    } finally { setMicRequestBusy(false); }
   }
 
   const ar = true;
@@ -89,7 +110,7 @@ export default function VoiceRoomRoute() {
     {loading ? <ActivityIndicator color="#31D6B0" style={{marginTop:36}} /> : error && !room ? <View style={s.center}><Text style={s.error}>{error}</Text><Pressable onPress={() => void loadRoom()}><Text style={s.mint}>إعادة المحاولة</Text></Pressable></View> : <>
       <ScrollView contentContainerStyle={s.content}>
         <View style={s.stage}><Text style={s.stageEmoji}>🎙️</Text><Text style={s.stageTitle}>{live?"متصل بالغرفة":"اجتمعوا بالصوت"}</Text><Text style={s.subtitle}>{room?.status==="locked"?"الغرفة مقفلة":room?.status==="closed"?"الغرفة مغلقة":"الغرفة الصوتية المباشرة"}</Text>
-          {live ? <LiveKitRoom serverUrl={live.url} token={live.token} connect={true} audio={true} video={false} onDisconnected={() => { setLive(null); void AudioSession.stopAudioSession().catch(() => undefined); }}><View style={s.connected}><Text style={s.connectedText}>اتصال LiveKit نشط</Text><Pressable onPress={() => void leaveVoice()} style={s.primary}><Text style={s.primaryText}>مغادرة الغرفة</Text></Pressable></View></LiveKitRoom> : <Pressable disabled={busy || room?.status==="closed"} onPress={() => void joinVoice()} style={s.primary}>{busy?<ActivityIndicator color="#06251E"/>:<Text style={s.primaryText}>الانضمام للصوت</Text>}</Pressable>}
+          {live ? <LiveKitRoom serverUrl={live.url} token={live.token} connect={true} audio={true} video={false} onDisconnected={() => { setLive(null); void AudioSession.stopAudioSession().catch(() => undefined); }}><View style={s.connected}><Text style={s.connectedText}>اتصال LiveKit نشط</Text>{!isHost ? <Pressable disabled={micRequestBusy || micRequestSent} onPress={() => void requestMicrophone()} style={[s.primary,{opacity:micRequestSent?0.65:1}]}>{micRequestBusy?<ActivityIndicator color="#06251E"/>:<Text style={s.primaryText}>{micRequestSent?"تم إرسال طلب المايك":"طلب المايك"}</Text>}</Pressable> : null}<Pressable onPress={() => void leaveVoice()} style={s.primary}><Text style={s.primaryText}>مغادرة الغرفة</Text></Pressable></View></LiveKitRoom> : <Pressable disabled={busy || room?.status==="closed"} onPress={() => void joinVoice()} style={s.primary}>{busy?<ActivityIndicator color="#06251E"/>:<Text style={s.primaryText}>الانضمام للصوت</Text>}</Pressable>}
         </View>
         {error ? <Text style={s.error}>{error}</Text> : null}
         <View style={s.section}><Text style={s.sectionTitle}>المقاعد الصوتية · 20</Text><View style={s.grid}>{sortedSeats.map((seat) => {
