@@ -1,0 +1,16 @@
+{
+  "expo": {
+    "name": "Jehoo Chat",
+    "slug": "jehoo-chat",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.mgmods.jehoochat"
+    },
+    "android": {
+      "package": "com.mgmods.jehoochat"
+    }
+  }
+}
