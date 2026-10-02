@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Alert, FlatList, Pressable, SafeAreaView, StyleSheet, Text, View } from "react-native";
 import * as WebBrowser from "expo-web-browser";
-import * as Google from "expo-auth-session/providers/google";
+import { makeRedirectUri } from "expo-auth-session";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import { messages, type Locale } from "@jehoo/shared";
@@ -17,11 +17,6 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
-  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
-    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || "",
-    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || "",
-    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || "",
-  });
   const copy = messages[locale];
   const ar = locale === "ar";
 
@@ -35,15 +30,7 @@ export default function HomeScreen() {
     return () => subscription.unsubscribe();
   }, [copy.configurationRequired]);
 
-  useEffect(() => {
-    if (response?.type !== "success") return;
-    const idToken = response.params?.id_token;
-    if (!idToken || !supabase) { setError(ar ? "تعذّر استلام رمز Google." : "Google ID token was not returned."); return; }
-    setAuthBusy(true);
-    supabase.auth.signInWithIdToken({ provider: "google", token: idToken })
-      .then(({ error: authError }) => { if (authError) setError(authError.message); })
-      .finally(() => setAuthBusy(false));
-  }, [response, ar]);
+
 
   const loadRooms = useCallback(async () => {
     if (!supabase || !session) { setRooms([]); setLoading(false); return; }
@@ -61,7 +48,34 @@ export default function HomeScreen() {
   async function signIn() {
     if (!supabase) { setError(copy.configurationRequired); return; }
     setError("");
-    await promptAsync();
+    setAuthBusy(true);
+    try {
+      const redirectTo = makeRedirectUri({ scheme: "jehoochat", path: "auth/callback" });
+      const { data, error: oauthError } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo, skipBrowserRedirect: true },
+      });
+      if (oauthError) throw oauthError;
+      if (!data.url) throw new Error(ar ? "تعذّر بدء تسجيل الدخول." : "Could not start sign-in.");
+      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+      if (result.type !== "success" || !result.url) return;
+      const callback = new URL(result.url);
+      const params = new URLSearchParams(callback.search);
+      const hashParams = new URLSearchParams(callback.hash.startsWith("#") ? callback.hash.slice(1) : callback.hash);
+      const accessToken = params.get("access_token") ?? hashParams.get("access_token");
+      const refreshToken = params.get("refresh_token") ?? hashParams.get("refresh_token");
+      if (accessToken && refreshToken) {
+        const { error: sessionError } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+        if (sessionError) throw sessionError;
+      } else {
+        const authError = params.get("error_description") ?? hashParams.get("error_description");
+        if (authError) throw new Error(authError);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : (ar ? "فشل تسجيل الدخول." : "Sign-in failed."));
+    } finally {
+      setAuthBusy(false);
+    }
   }
   async function signOut() {
     if (!supabase) return;
@@ -78,7 +92,7 @@ export default function HomeScreen() {
       <Text style={s.eyebrow}>{ar ? "مساحتك، صوتك، أصدقاؤك" : "Your space, your voice, your friends"}</Text>
       <Text style={s.heroTitle}>{ar ? "أهلاً بك في جيهو" : "Welcome to JEHOO"}</Text>
       <Text style={s.body}>{ar ? "سجّل الدخول لعرض الغرف الحقيقية المرتبطة بحسابك." : "Sign in to discover live rooms connected to your account."}</Text>
-      <Pressable disabled={!request || authBusy} onPress={signIn} style={s.primary}>{authBusy ? <ActivityIndicator color="#06251E" /> : <Text style={s.primaryText}>{ar ? "المتابعة باستخدام Google" : "Continue with Google"}</Text>}</Pressable>
+      <Pressable disabled={authBusy} onPress={signIn} style={s.primary}>{authBusy ? <ActivityIndicator color="#06251E" /> : <Text style={s.primaryText}>{ar ? "المتابعة باستخدام Google" : "Continue with Google"}</Text>}</Pressable>
     </View> : <>
       <View style={s.sectionHeader}><View><Text style={s.sectionTitle}>{ar ? "الغرف الصوتية" : "Voice rooms"}</Text><Text style={s.subtitle}>{ar ? "بيانات مباشرة من قاعدة البيانات" : "Live data from your database"}</Text></View><Pressable onPress={signOut} style={s.secondary}><Text style={s.secondaryText}>{copy.signOut}</Text></Pressable></View>
       {loading ? <ActivityIndicator style={{ marginTop: 32 }} color="#31D6B0" /> : error ? <View style={s.empty}><Text style={s.error}>{error}</Text><Pressable onPress={() => void loadRooms()}><Text style={s.mint}>{ar ? "إعادة المحاولة" : "Retry"}</Text></Pressable></View> :
