@@ -1,6 +1,12 @@
 -- Atomic, audited wallet adjustments for Super Admin operations.
--- Only the service role may invoke this function; caller identity and permission are verified by Edge Function.
-create or replace function private.apply_wallet_adjustment(
+insert into public.app_permissions(id,description)
+values ('wallet.adjust','Apply audited server-side wallet adjustments')
+on conflict (id) do nothing;
+insert into public.role_permissions(role_id,permission_id)
+values ('SUPER_ADMIN','wallet.adjust')
+on conflict do nothing;
+
+create or replace function public.jehoo_apply_wallet_adjustment(
  p_actor_id uuid, p_user_id uuid, p_amount bigint, p_idempotency_key text, p_reason text
 ) returns jsonb
 language plpgsql security definer set search_path = ''
@@ -31,5 +37,5 @@ exception when unique_violation then
  raise;
 end;
 $$;
-revoke all on function private.apply_wallet_adjustment(uuid,uuid,bigint,text,text) from public,anon,authenticated;
-grant execute on function private.apply_wallet_adjustment(uuid,uuid,bigint,text,text) to service_role;
+revoke all on function public.jehoo_apply_wallet_adjustment(uuid,uuid,bigint,text,text) from public,anon,authenticated;
+grant execute on function public.jehoo_apply_wallet_adjustment(uuid,uuid,bigint,text,text) to service_role;
