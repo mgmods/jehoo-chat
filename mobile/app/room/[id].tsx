@@ -143,7 +143,8 @@ export default function VoiceRoomRoute() {
           {live ? <LiveKitRoom serverUrl={live.url} token={live.token} connect={true} audio={true} video={false} onDisconnected={() => {
             setLive(null);
             void AudioSession.stopAudioSession().catch(() => undefined);
-            if (supabase && room) void supabase.rpc("jehoo_leave_room", { p_room_id: room.id }).then(() => {
+            const client = supabase;
+            if (client && room) void client.rpc("jehoo_leave_room", { p_room_id: room.id }).then(() => {
               setMicRequestSent(false);
               void loadRoom();
             });
