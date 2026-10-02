@@ -63,3 +63,10 @@ No license has been selected yet; choose one before accepting outside contributi
 5. Test microphone permissions, join/leave, backgrounding, audio route changes, network loss, moderation and multiple participants on real Android and iOS devices.
 
 The client code is integration scaffolding only. No token service is included, and voice has not been connected or device-tested in this repository yet.
+
+
+## Supabase hardening and voice authentication
+- The production project has an applied hardening migration that restricts trigger-function RPC execution, protects the six-digit Jehoo ID from client changes, and adds missing foreign-key indexes.
+- The app sends the signed-in Supabase access token to the configured LiveKit token endpoint and no longer asks the client to choose its own participant identity. The token endpoint must verify that JWT and derive the identity from the verified user; this repository does not include that endpoint.
+- Set `EXPO_PUBLIC_VOICE_TOKEN_URL` only to your trusted HTTPS token service. Audio still requires LiveKit server credentials stored on the backend, a native development build, and real-device testing.
+- The GitHub code changes are staged on `fix/supabase-hardening` for review; they are not merged into `main` yet.
