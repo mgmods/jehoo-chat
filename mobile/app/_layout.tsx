@@ -18,7 +18,8 @@ export default function RootLayout() {
   const splashTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (!supabase) {
+    const client = supabase;
+    if (!client) {
       setSplashLoading(false);
       setShowSplash(false);
       return;
@@ -50,7 +51,7 @@ export default function RootLayout() {
 
     async function loadSplash() {
       try {
-        const { data, error } = await supabase
+        const { data, error } = await client
           .from("app_splash_settings")
           .select("image_url,duration_seconds")
           .eq("id", "default")
@@ -66,7 +67,7 @@ export default function RootLayout() {
     }
     void loadSplash();
 
-    const channel = supabase
+    const channel = client
       .channel("app-splash-live-updates")
       .on("postgres_changes", {
         event: "*",
@@ -83,7 +84,7 @@ export default function RootLayout() {
       active = false;
       clearTimeout(failSafe);
       if (splashTimeout.current) clearTimeout(splashTimeout.current);
-      void supabase.removeChannel(channel);
+      void client.removeChannel(channel);
     };
   }, []);
 
@@ -109,8 +110,6 @@ export default function RootLayout() {
         source={{ uri: splash.image_url }}
         resizeMode="contain"
         style={styles.image}
-        onLoad={startSplashTimer}
-        onError={startSplashTimer}
         accessibilityLabel="JEHOO CHAT splash screen"
       /> : <View style={styles.brand}>
         <Text style={styles.brandText}>JEHOO <Text style={styles.dot}>●</Text> CHAT</Text>
