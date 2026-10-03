@@ -134,7 +134,7 @@ export default function SplashSettingsPage() {
       if (file && current?.storage_path && current.storage_path !== storagePath) {
         await supabase.storage.from("app-assets").remove([current.storage_path]);
       }
-      setNotice("تم حفظ شاشة البداية. ستظهر الصورة الجديدة عند فتح التطبيق لاحقاً.");
+      setNotice("تم تطبيق شاشة البداية. ستصل التغييرات للأجهزة المتصلة خلال لحظات، وستظهر أيضاً عند تشغيل التطبيق.");
       setFile(null);
       await load();
     } catch (e) {
