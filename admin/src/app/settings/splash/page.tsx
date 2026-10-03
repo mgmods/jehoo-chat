@@ -157,7 +157,9 @@ export default function SplashSettingsPage() {
       setSaving(false);
       return;
     }
-    const { error: storageError } = await supabase.storage.from("app-assets").remove([current.storage_path]);
+    const { error: storageError } = current.storage_path
+      ? await supabase.storage.from("app-assets").remove([current.storage_path])
+      : { error: null };
     setCurrent(null);
     setFile(null);
     setDuration(5);
