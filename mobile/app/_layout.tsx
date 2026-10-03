@@ -63,6 +63,12 @@ export default function RootLayout() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!splash) return;
+    const fallback = setTimeout(() => setShowSplash(false), (splash.duration_seconds + 5) * 1000);
+    return () => clearTimeout(fallback);
+  }, [splash]);
+
   function startSplashTimer() {
     if (!splash || timerStarted.current) return;
     timerStarted.current = true;
