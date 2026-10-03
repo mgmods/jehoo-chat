@@ -18,10 +18,11 @@ export default function RootLayout() {
 
   useEffect(() => {
     let active = true;
+    let settled = false;
     const failSafe = setTimeout(() => {
-      if (active) {
+      if (active && !settled) {
         setSplashLoading(false);
-        if (!splash) setShowSplash(false);
+        setShowSplash(false);
       }
     }, 5000);
 
@@ -51,6 +52,7 @@ export default function RootLayout() {
       } catch {
         if (active) setShowSplash(false);
       } finally {
+        settled = true;
         if (active) setSplashLoading(false);
       }
     }
@@ -81,6 +83,7 @@ export default function RootLayout() {
       /> : <View style={styles.brand}>
         <Text style={styles.brandText}>JEHOO <Text style={styles.dot}>●</Text> CHAT</Text>
         <Text style={styles.subtitle}>VOICE · CHAT · COMMUNITY</Text>
+        {splashLoading && <Text style={styles.subtitle}>جارٍ التحميل…</Text>}
       </View>}
     </View>}
   </>;
