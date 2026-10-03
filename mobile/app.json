@@ -25,11 +25,16 @@
         "RECORD_AUDIO",
         "MODIFY_AUDIO_SETTINGS",
         "BLUETOOTH_CONNECT"
-      ]
+      ],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.jpg",
+        "backgroundColor": "#FFFFFF"
+      }
     },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.mgmods.jehoochat"
-    }
+    },
+    "icon": "./assets/icon.jpg"
   }
 }
