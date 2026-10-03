@@ -18,12 +18,12 @@ export default function RootLayout() {
   const splashTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    const client = supabase;
-    if (!client) {
+    if (!supabase) {
       setSplashLoading(false);
       setShowSplash(false);
       return;
     }
+    const client = supabase as NonNullable<typeof supabase>;
     let active = true;
     let settled = false;
     const failSafe = setTimeout(() => {
