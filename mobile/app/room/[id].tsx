@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { AudioSession, LiveKitRoom } from "@livekit/react-native";
+import { AudioSession, LiveKitRoom, registerGlobals } from "@livekit/react-native";
 import { supabase } from "@/lib/supabase";
 
 type RoomRow = { id:string; name:string; description:string; status:"active"|"locked"|"closed"; owner_id:string; livekit_room_name:string };
@@ -83,6 +83,9 @@ export default function VoiceRoomRoute() {
       const { data, error: tokenError } = await client.functions.invoke("livekit-token",{body:{roomName:room.livekit_room_name}});
       if (tokenError) throw tokenError;
       if (!data?.serverUrl || !data?.participantToken) throw new Error("Voice token response is incomplete.");
+      // Initialize WebRTC only when the user enters a voice room. Some Android/Hermes
+      // builds fail at app startup when LiveKit stream shims are registered eagerly.
+      registerGlobals();
       await AudioSession.startAudioSession();
       setLive({url:data.serverUrl,token:data.participantToken});
     } catch (e) {
