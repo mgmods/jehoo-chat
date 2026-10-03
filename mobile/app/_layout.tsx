@@ -3,10 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { registerGlobals } from "@livekit/react-native";
 import { supabase } from "@/lib/supabase";
 
-registerGlobals();
 
 type SplashSettings = { image_url: string; duration_seconds: number };
 
