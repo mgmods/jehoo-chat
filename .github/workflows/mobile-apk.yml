@@ -42,7 +42,7 @@ jobs:
       - name: Build standalone release APK
         run: cd android && chmod +x gradlew && ./gradlew assembleRelease
       - name: Upload APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: jehoo-chat-mobile-release
           path: mobile/android/app/build/outputs/apk/release/app-release.apk
