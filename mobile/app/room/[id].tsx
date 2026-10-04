@@ -23,12 +23,12 @@ export default function VoiceRoomRoute() {
   const [liveRoom,setLiveRoom]=useState<Room|null>(null); const liveRoomRef=useRef<Room|null>(null); const joinAttemptRef=useRef(0);
   const [passwordModal,setPasswordModal]=useState(false), [joinPassword,setJoinPassword]=useState("");
   const [settingsName,setSettingsName]=useState(""), [settingsDescription,setSettingsDescription]=useState(""), [settingsCover,setSettingsCover]=useState(""), [settingsSeats,setSettingsSeats]=useState("10"), [settingsPasswordEnabled,setSettingsPasswordEnabled]=useState(false), [settingsPassword,setSettingsPassword]=useState(""), [settingsWelcome,setSettingsWelcome]=useState(""), [settingsBusy,setSettingsBusy]=useState(false);
-  const [isHost,setIsHost]=useState(false), [canModerate,setCanModerate]=useState(false), [micEnabled,setMicEnabled]=useState(true);
+  const [isHost,setIsHost]=useState(false), [canModerate,setCanModerate]=useState(false), [micEnabled,setMicEnabled]=useState(true), [isRoomMember,setIsRoomMember]=useState(false);
   const [micRequestBusy,setMicRequestBusy]=useState(false), [micRequestSent,setMicRequestSent]=useState(false), [pendingMicRequests,setPendingMicRequests]=useState<MicRequestRow[]>([]);
   const [handlingRequest,setHandlingRequest]=useState<string|null>(null), [actingUser,setActingUser]=useState<string|null>(null); const [showAdmin,setShowAdmin]=useState(false), [members,setMembers]=useState<any[]>([]), [bans,setBans]=useState<any[]>([]), [showBans,setShowBans]=useState(false); const [roomTab,setRoomTab]=useState<"all"|"chat"|"gifts"|"enter">("all");
   const [conversationId,setConversationId]=useState<string|null>(null), [chatMessages,setChatMessages]=useState<any[]>([]), [chatDraft,setChatDraft]=useState(""), [chatBusy,setChatBusy]=useState(false);
   const [giftCatalog,setGiftCatalog]=useState<any[]>([]), [selectedRecipient,setSelectedRecipient]=useState<string|null>(null), [walletCoins,setWalletCoins]=useState<number|null>(null), [giftBusy,setGiftBusy]=useState(false);
-  const isRoomParticipant=Boolean(currentUserId&&(room?.owner_id===currentUserId||seats.some(seat=>seat.user_id===currentUserId&&seat.status==="occupied")));
+  const isRoomParticipant=Boolean(currentUserId&&(room?.owner_id===currentUserId||isRoomMember||seats.some(seat=>seat.user_id===currentUserId&&seat.status==="occupied")));
 
   const loadRoom=useCallback(async()=>{
     const client=supabase;
@@ -44,7 +44,7 @@ export default function VoiceRoomRoute() {
     if(ids.length){const {data:profileRows,error:profileError}=await client.from("profiles").select("id,display_name,avatar_url,level,vip_level").in("id",ids);if(profileError){setError(profileError.message);setLoading(false);return;}const map:Record<string,ProfileRow>={};(profileRows??[]).forEach(p=>{map[p.id]=p as ProfileRow});setProfiles(map);}else setProfiles({});
     const {data:{user}}=await client.auth.getUser(); const host=Boolean(user&&user.id===roomData.owner_id); setIsHost(host);
     let moderator=false;let memberRole="listener";let memberMuted=false;
-    if(user&&!host){const {data:member}=await client.from("room_members").select("room_role,muted").eq("room_id",roomId).eq("user_id",user.id).maybeSingle();memberRole=member?.room_role??"listener";memberMuted=Boolean(member?.muted);moderator=["co_host","moderator"].includes(memberRole);}
+    if(user&&!host){const {data:member}=await client.from("room_members").select("room_role,muted").eq("room_id",roomId).eq("user_id",user.id).maybeSingle();memberRole=member?.room_role??"listener";memberMuted=Boolean(member?.muted);setIsRoomMember(Boolean(member));moderator=["co_host","moderator"].includes(memberRole);}else setIsRoomMember(host);
     setCanModerate(host||moderator);
     if(host||moderator){const [{data:membersData},{data:bansData}]=await Promise.all([client.from("room_members").select("user_id,room_role,muted,profiles(display_name)").eq("room_id",roomId).order("room_role"),client.from("room_bans").select("user_id,reason,created_at,profiles(display_name)").eq("room_id",roomId).order("created_at",{ascending:false})]);setMembers(membersData??[]);setBans(bansData??[]);const {data:requests}=await client.from("room_requests").select("id,user_id,created_at,profiles(display_name)").eq("room_id",roomId).eq("request_type","microphone").eq("status","pending").order("created_at",{ascending:true});setPendingMicRequests((requests??[]) as unknown as MicRequestRow[]);}else {setPendingMicRequests([]);setMembers([]);setBans([]);}
     if(user&&liveRoom){
