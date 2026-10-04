@@ -18,7 +18,7 @@ as $$
     join public.conversation_members cm on cm.conversation_id = c.id
     where c.id = p_conversation_id
       and cm.user_id = p_user_id
-      and (c.kind <> 'room' or p_created_at >= cm.joined_at)
+      and (c.kind <> 'room' or p_created_at > cm.joined_at)
   );
 $$;
 revoke all on function private.jehoo_room_message_visible(uuid,uuid,timestamptz) from public, anon;
@@ -58,9 +58,9 @@ begin
   where kind = 'room' and room_id = p_room_id;
 
   insert into public.conversation_members(conversation_id, user_id, member_role, joined_at)
-  values (v_conversation_id, v_user, 'member', now())
+  values (v_conversation_id, v_user, 'member', clock_timestamp())
   on conflict (conversation_id, user_id)
-  do update set joined_at = excluded.joined_at;
+  do update set joined_at = clock_timestamp();
 
   return v_conversation_id;
 end;
