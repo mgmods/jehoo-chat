@@ -1,4 +1,3 @@
-import "@/lib/livekit";
 import { useEffect, useRef, useState } from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { Stack } from "expo-router";
