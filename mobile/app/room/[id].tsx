@@ -3,12 +3,9 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
-import { AudioSession, LiveKitRoom, registerGlobals } from "@livekit/react-native";
+import { AudioSession, LiveKitRoom } from "@livekit/react-native";
 import { Room, RoomEvent } from "livekit-client";
 import { supabase } from "@/lib/supabase";
-
-// LiveKit requires its WebRTC and Web Streams globals to be registered once at startup.
-registerGlobals();
 
 type RoomRow = { id:string; name:string; description:string; status:"active"|"locked"|"closed"; owner_id:string; livekit_room_name:string; cover_url:string|null; max_seats:number; password_enabled:boolean; welcome_message:string };
 type SeatRow = { room_id:string; seat_number:number; status:"empty"|"occupied"|"locked"|"reserved"; user_id:string|null; reserved_for:string|null };
