@@ -35,8 +35,63 @@ Deno.serve(async (req: Request) => {
   const { data: { user }, error: authError } = await userClient.auth.getUser(auth[1]);
   if (authError || !user) return json({ error: "Invalid or expired session" }, 401);
 
-  let payload: { requestId?: unknown; accept?: unknown };
+  let payload: { requestId?: unknown; accept?: unknown; action?: unknown; roomId?: unknown; targetUserId?: unknown };
   try { payload = await req.json(); } catch { return json({ error: "Invalid JSON" }, 400); }
+
+  // Room moderation must update LiveKit as well as the database; otherwise a
+  // muted/kicked participant can keep publishing audio on an existing connection.
+  if (typeof payload.action === "string") {
+    if (!["lower", "mute", "kick", "ban"].includes(payload.action)
+      || typeof payload.roomId !== "string" || !/^[0-9a-f-]{36}$/i.test(payload.roomId)
+      || typeof payload.targetUserId !== "string" || !/^[0-9a-f-]{36}$/i.test(payload.targetUserId)) {
+      return json({ error: "Invalid room moderation action" }, 400);
+    }
+    const rpcName = payload.action === "lower" ? "jehoo_lower_from_seat"
+      : payload.action === "mute" ? "jehoo_mute_room_member"
+      : payload.action === "kick" ? "jehoo_kick_from_room" : "jehoo_ban_from_room";
+    const rpcArgs: Record<string, unknown> = {
+      p_room_id: payload.roomId,
+      p_target_user_id: payload.targetUserId,
+    };
+    if (payload.action === "mute") rpcArgs.p_muted = true;
+    if (payload.action === "ban") rpcArgs.p_reason = "إدارة الغرفة";
+    const { data: moderationResult, error: moderationError } = await userClient.rpc(rpcName, rpcArgs);
+    if (moderationError) {
+      const status = moderationError.code === "42501" ? 403 : moderationError.code === "P0002" ? 404 : 400;
+      return json({ error: moderationError.message || "Unable to moderate room member" }, status);
+    }
+
+    const admin = createClient(url, service, { auth: { persistSession: false, autoRefreshToken: false } });
+    const { data: room, error: roomError } = await admin.from("rooms")
+      .select("livekit_room_name").eq("id", payload.roomId).maybeSingle();
+    if (roomError || !room?.livekit_room_name) {
+      return json({ ok: true, result: moderationResult, livekitAction: "next-token" });
+    }
+    try {
+      const livekit = new RoomServiceClient(livekitUrl, livekitKey, livekitSecret);
+      const participants = await livekit.listParticipants(room.livekit_room_name);
+      if (!participants.some((participant) => participant.identity === payload.targetUserId)) {
+        return json({ ok: true, result: moderationResult, livekitAction: "next-token" });
+      }
+      if (payload.action === "kick" || payload.action === "ban") {
+        await livekit.removeParticipant(room.livekit_room_name, payload.targetUserId);
+      } else {
+        await livekit.updateParticipant(room.livekit_room_name, payload.targetUserId, {
+          permission: { canPublish: false, canSubscribe: true, canPublishData: true },
+        });
+      }
+      return json({ ok: true, result: moderationResult, livekitAction: "updated" });
+    } catch (_error) {
+      try {
+        const livekit = new RoomServiceClient(livekitUrl, livekitKey, livekitSecret);
+        await livekit.updateParticipant(room.livekit_room_name, payload.targetUserId, {
+          permission: { canPublish: false, canSubscribe: true, canPublishData: true },
+        });
+      } catch {}
+      return json({ ok: true, result: moderationResult, livekitAction: "refresh-required" });
+    }
+  }
+
   if (typeof payload.requestId !== "string" || !/^[0-9a-f-]{36}$/i.test(payload.requestId) || typeof payload.accept !== "boolean") {
     return json({ error: "Invalid microphone decision" }, 400);
   }
