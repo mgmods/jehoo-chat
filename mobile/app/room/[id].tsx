@@ -59,7 +59,7 @@ export default function VoiceRoomRoute() {
   useEffect(()=>{void loadRoom()},[loadRoom]);
   useEffect(()=>{
     const client=supabase;
-    if(!client||!roomId||roomTab!=="chat")return;
+    if(!client||!roomId)return;
     let active=true; let channel:any=null;
     setChatMessages([]);
     setConversationId(null);
@@ -80,7 +80,7 @@ export default function VoiceRoomRoute() {
       finally{if(active)setChatBusy(false);}
     };
     void start();return()=>{active=false;setChatMessages([]);setConversationId(null);if(channel)void client.removeChannel(channel)};
-  },[roomId,roomTab]);
+  },[roomId]);
   useEffect(()=>{
     const client=supabase;if(!client||!roomId||roomTab!=="gifts")return;let active=true;
     const loadGifts=async()=>{try{const [{data:gifts,error:giftsError},{data:{user}}]=await Promise.all([client.from("room_gift_catalog").select("gift_key,title,emoji,price").eq("is_active",true).order("price"),client.auth.getUser()]);if(giftsError)throw giftsError;if(active)setGiftCatalog(gifts??[]);if(user){const {data:wallet}=await client.from("wallets").select("coins").eq("user_id",user.id).maybeSingle();if(active)setWalletCoins(wallet?.coins??0);}}catch(e){if(active)setError(e instanceof Error?e.message:"تعذر تحميل الهدايا");}};
