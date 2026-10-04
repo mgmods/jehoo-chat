@@ -32,24 +32,34 @@ export default function ProfileOnboarding({ user, initialProfile, onComplete }: 
     if (!gender) return setError("اختر الجنس.");
     if (!/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) return setError("اكتب تاريخ الميلاد بهذا الشكل: 2000-05-21");
     if (!country) return setError("اختر البلد.");
-    setBusy(true);
-    const { error: saveError } = await supabase!.rpc("jehoo_complete_profile", {
-      p_first_name: firstName.trim(),
-      p_nickname: nickname.trim(),
-      p_gender: gender,
-      p_birth_date: birthDate,
-      p_country: country,
-      p_avatar_url: avatarUrl.trim() || null,
-    });
-    setBusy(false);
-    if (saveError) {
-      const message = saveError.message.includes("invalid_birth_date")
-          ? "العمر يجب أن يكون بين 13 و100 سنة."
-          : "تعذر حفظ الحساب. حاول مرة أخرى.";
-      setError(message);
+    const client = supabase;
+    if (!client) {
+      setError("الاتصال بالخدمة غير جاهز. أغلق التطبيق وافتحه وحاول مرة أخرى.");
       return;
     }
-    onComplete();
+    setBusy(true);
+    try {
+      const { error: saveError } = await client.rpc("jehoo_complete_profile", {
+        p_first_name: firstName.trim(),
+        p_nickname: nickname.trim(),
+        p_gender: gender,
+        p_birth_date: birthDate,
+        p_country: country,
+        p_avatar_url: avatarUrl.trim() || null,
+      });
+      if (saveError) {
+        const message = saveError.message.includes("invalid_birth_date")
+          ? "العمر يجب أن يكون بين 13 و100 سنة."
+          : "تعذر حفظ الحساب. تحقق من اتصالك وحاول مرة أخرى.";
+        setError(message);
+        return;
+      }
+      onComplete();
+    } catch {
+      setError("تعذر الاتصال بالخادم. تحقق من الإنترنت وحاول مرة أخرى.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   return <ScrollView style={s.scroll} contentContainerStyle={s.page} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
