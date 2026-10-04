@@ -239,3 +239,5 @@ export default function HomeScreen() {
     </ScrollView>
     {session ? <View style={s.bottomNav}>{[["rooms","◉",ar?"الغرف":"Rooms"],["chats","☷",ar?"الدردشات":"Chats"],["me","●",ar?"أنا":"Me"]].map(([id,icon,label]) => <Pressable key={id} onPress={() => setTab(id as "rooms"|"chats"|"me")} style={s.navItem}><View style={[s.navIcon,{backgroundColor:tab===id?"#31D6B0":"#16222D"}]}><Text style={[s.navIconText,{color:tab===id?"#06251E":"#B6C4D0"}]}>{icon}</Text></View><Text style={[s.navLabel,{color:tab===id?"#31D6B0":"#94A3B8"}]}>{label}</Text></Pressable>)}</View> : null}
   </SafeAreaView>;
+
+}
