@@ -147,8 +147,12 @@ export default function VoiceRoomRoute() {
       pendingRoom=new Room();
       await pendingRoom.connect(data.serverUrl,data.participantToken,{});
       const canPublish=Boolean(data.canPublish);
-      await pendingRoom.localParticipant.setMicrophoneEnabled(canPublish);
-      setMicEnabled(canPublish);
+      let microphoneStarted=false;
+      if(canPublish){
+        try{await pendingRoom.localParticipant.setMicrophoneEnabled(true);microphoneStarted=true;}
+        catch{Alert.alert("تم الاتصال بالصوت","الميكروفون غير متاح حالياً. يمكنك الاستماع، وتفعيل صلاحية المايك من إعدادات الجهاز.");}
+      }
+      setMicEnabled(microphoneStarted);
       liveRoomRef.current=pendingRoom;
       const connectedRoom=pendingRoom;
       connectedRoom.on(RoomEvent.Disconnected,()=>{
