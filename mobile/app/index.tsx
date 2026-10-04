@@ -202,7 +202,7 @@ export default function HomeScreen() {
         <Pressable onPress={() => { setTab("rooms"); void loadRooms(); }}><Text style={s.topLink}>{ar ? "ملكي" : "Mine"}</Text></Pressable>
         <Pressable onPress={() => { setTab("rooms"); void loadRooms(); }}><Text style={s.topLink}>{ar ? "الفعاليات" : "Events"}</Text></Pressable>
       </View>
-    </View>
+    </View> : null}
     <ScrollView style={s.contentScroll} contentContainerStyle={s.contentContainer} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
       {!session ? <View style={s.hero}>
         <Text style={s.eyebrow}>{ar ? "مساحتك، صوتك، أصدقاؤك" : "Your space, your voice, your friends"}</Text>
