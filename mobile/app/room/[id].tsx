@@ -3,8 +3,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
-import { AudioSession, LiveKitRoom } from "@livekit/react-native";
-import { Room, RoomEvent } from "livekit-client";
+import type { Room as LiveKitRoomType } from "livekit-client";
 import { supabase } from "@/lib/supabase";
 
 type RoomRow = { id:string; name:string; description:string; status:"active"|"locked"|"closed"; owner_id:string; livekit_room_name:string; cover_url:string|null; max_seats:number; password_enabled:boolean; welcome_message:string };
@@ -20,7 +19,7 @@ export default function VoiceRoomRoute() {
   const [room,setRoom]=useState<RoomRow|null>(null), [seats,setSeats]=useState<SeatRow[]>([]), [profiles,setProfiles]=useState<Record<string,ProfileRow>>({});
   const [ownerProfile,setOwnerProfile]=useState<ProfileRow|null>(null), [followed,setFollowed]=useState(false), [currentUserId,setCurrentUserId]=useState<string|null>(null);
   const [loading,setLoading]=useState(true), [busy,setBusy]=useState(false), [live,setLive]=useState<{url:string;token:string}|null>(null), [error,setError]=useState("");
-  const [liveRoom,setLiveRoom]=useState<Room|null>(null); const liveRoomRef=useRef<Room|null>(null); const joinAttemptRef=useRef(0);
+  const [liveRoom,setLiveRoom]=useState<LiveKitRoomType|null>(null); const liveRoomRef=useRef<LiveKitRoomType|null>(null); const joinAttemptRef=useRef(0);
   const [passwordModal,setPasswordModal]=useState(false), [joinPassword,setJoinPassword]=useState("");
   const [settingsName,setSettingsName]=useState(""), [settingsDescription,setSettingsDescription]=useState(""), [settingsCover,setSettingsCover]=useState(""), [settingsSeats,setSettingsSeats]=useState("10"), [settingsPasswordEnabled,setSettingsPasswordEnabled]=useState(false), [settingsPassword,setSettingsPassword]=useState(""), [settingsWelcome,setSettingsWelcome]=useState(""), [settingsBusy,setSettingsBusy]=useState(false);
   const [isHost,setIsHost]=useState(false), [canModerate,setCanModerate]=useState(false), [micEnabled,setMicEnabled]=useState(true), [canSpeak,setCanSpeak]=useState(false), [isRoomMember,setIsRoomMember]=useState(false), [roomMemberCount,setRoomMemberCount]=useState(0);
@@ -131,7 +130,7 @@ export default function VoiceRoomRoute() {
 
   useEffect(()=>{const client=supabase;if(!client||!roomId)return;const channel=client.channel("room-live-"+roomId).on("postgres_changes",{event:"*",schema:"public",table:"rooms",filter:"id=eq."+roomId},()=>void loadRoom()).on("postgres_changes",{event:"*",schema:"public",table:"room_seats",filter:"room_id=eq."+roomId},()=>void loadRoom()).on("postgres_changes",{event:"*",schema:"public",table:"room_requests",filter:"room_id=eq."+roomId},()=>void loadRoom()).on("postgres_changes",{event:"*",schema:"public",table:"room_members",filter:"room_id=eq."+roomId},()=>void loadRoom()).subscribe();return()=>{void client.removeChannel(channel)}},[roomId,loadRoom]);
 
-  useEffect(()=>()=>{joinAttemptRef.current+=1;const roomInstance=liveRoomRef.current;liveRoomRef.current=null;if(roomInstance){void roomInstance.disconnect();}void AudioSession.stopAudioSession().catch(()=>undefined);const client=supabase;if(client&&roomId)void client.rpc("jehoo_leave_room",{p_room_id:roomId});},[roomId]);
+  useEffect(()=>()=>{joinAttemptRef.current+=1;const roomInstance=liveRoomRef.current;liveRoomRef.current=null;if(roomInstance){void roomInstance.disconnect();}void import("@livekit/react-native").then(({AudioSession})=>AudioSession.stopAudioSession()).catch(()=>undefined);const client=supabase;if(client&&roomId)void client.rpc("jehoo_leave_room",{p_room_id:roomId});},[roomId]);
 
   async function joinVoice(password?:string){
     const client=supabase;
@@ -140,9 +139,9 @@ export default function VoiceRoomRoute() {
     if(room.status==="locked"&&!canModerate){setError("الغرفة مقفلة حالياً.");return;}
     const attempt=++joinAttemptRef.current;
     setBusy(true);setError("");
-    let pendingRoom:Room|null=null;
+    let pendingRoom:LiveKitRoomType|null=null;
     try{
-      const {error:joinError}=await client.rpc("jehoo_join_room",{p_room_id:room.id,p_password:password??null});
+      // Load native WebRTC/LiveKit only after the user explicitly enters voice.\n      // This keeps the Expo Router startup path free of the Web Streams shim crash.\n      const [{AudioSession},{Room,RoomEvent}]=await Promise.all([import("@livekit/react-native"),import("livekit-client")]);\n      const {error:joinError}=await client.rpc("jehoo_join_room",{p_room_id:room.id,p_password:password??null});
       if(joinError){
         if(String(joinError.message||"").includes("ROOM_PASSWORD_REQUIRED")){setPasswordModal(true);return;}
         throw joinError;
@@ -381,7 +380,7 @@ function openMemberActions(targetId:string,name:string){
         <Pressable onPress={()=>setRoomTab("enter")} style={s.dockButton}><Text style={s.dockIcon}>🎙</Text><Text style={s.dockLabel}>ادخل</Text></Pressable>
       </View>
 
-      {live?<LiveKitRoom room={liveRoom??undefined} serverUrl={live.url} token={live.token} connect={false} audio={false} video={false}/>:null}
+      {null}
       <Modal visible={passwordModal} transparent animationType="fade" onRequestClose={()=>setPasswordModal(false)}><View style={s.modalBackdrop}><View style={s.passwordCard}><Text style={s.modalTitle}>الغرفة محمية بكلمة سر</Text><Text style={s.modalText}>أدخل كلمة السر للدخول.</Text><TextInput value={joinPassword} onChangeText={setJoinPassword} secureTextEntry placeholder="كلمة السر" placeholderTextColor="#8AA39A" style={s.passwordInput}/><View style={s.modalRow}><Pressable onPress={()=>{setPasswordModal(false);setJoinPassword("")}} style={s.modalCancel}><Text style={s.modalCancelText}>إلغاء</Text></Pressable><Pressable onPress={()=>{setPasswordModal(false);void joinVoice(joinPassword);}} style={s.modalConfirm}><Text style={s.modalConfirmText}>دخول</Text></Pressable></View></View></View></Modal>
     </>}
   </SafeAreaView>;
