@@ -40,7 +40,7 @@ export default function HomeScreen() {
     if (q && !room.name.toLocaleLowerCase().includes(q) && !(room.description ?? "").toLocaleLowerCase().includes(q)) return false;
     if (roomFilter === "mine" && room.owner_id !== session?.user?.id) return false;
     if (roomFilter === "featured" && !room.is_featured) return false;
-    if (roomFilter === "locked" && !room.password_enabled) return false;
+    if (roomFilter === "locked" && !room.password_enabled && room.status !== "locked") return false;
     if (roomFilter === "egypt" && !/^(eg|egypt|مصر)$/i.test((room.owner?.country ?? "").trim())) return false;
     if (roomFilter === "syria" && !/^(sy|syria|سوريا)$/i.test((room.owner?.country ?? "").trim())) return false;
     return true;
@@ -223,7 +223,7 @@ export default function HomeScreen() {
         <Pressable disabled={authBusy} onPress={signIn} style={s.primary}>{authBusy ? <ActivityIndicator color="#06251E" /> : <Text style={s.primaryText}>{ar ? "المتابعة باستخدام Google" : "Continue with Google"}</Text>}</Pressable>
       </View> : tab === "rooms" ? <View>
         <Pressable onPress={() => { setTab("rooms"); setRoomFilter("featured"); }} style={s.banner}>
-          <View style={s.bannerGlow}><View style={s.bannerArt}><Text style={s.bannerGift}>🎁</Text><Text style={s.bannerDiamond}>◆</Text><Text style={s.bannerPerson}>👩🏻</Text><Text style={s.bannerPerson2}>🧑🏻</Text></View><Text style={s.bannerKicker}>JEHOO ✦ LIVE</Text><Text style={s.bannerTitle}>{ar ? "مكافآت الشحن" : "Recharge Rewards"}</Text><Text style={s.bannerText}>{ar ? "ادخل غرفتك المفضلة وتعرّف على أصدقاء جدد" : "Join your favorite rooms and meet new friends"}</Text><View style={s.bannerPill}><Text style={s.bannerPillText}>{ar ? "اكتشف الآن  ←" : "Explore now  →"}</Text></View></View>
+          <View style={s.bannerGlow}><View style={s.bannerArt}><Text style={s.bannerGift}>🎁</Text><Text style={s.bannerDiamond}>◆</Text><Text style={s.bannerPerson}>👩🏻</Text><Text style={s.bannerPerson2}>🧑🏻</Text></View><Text style={s.bannerKicker}>JEHOO ✦ LIVE</Text><Text style={s.bannerTitle}>{ar ? "اكتشف الرومات المميزة" : "Discover featured rooms"}</Text><Text style={s.bannerText}>{ar ? "غرف صوتية مميزة للتعارف والدردشة" : "Featured voice rooms to meet and chat"}</Text><View style={s.bannerPill}><Text style={s.bannerPillText}>{ar ? "شوف الرومات  ←" : "Explore rooms  →"}</Text></View></View>
         </Pressable>
         <View style={s.categoryRow}>{[
           { label: ar ? "المميزة" : "Featured", color: "#3997E8", icon: "✦", filter: "featured" as const },
@@ -243,7 +243,6 @@ export default function HomeScreen() {
         <View style={s.sectionHeader}><View><Text style={s.sectionTitle}>{ar ? "الرومات النشطة" : "Live rooms"}</Text><Text style={s.subtitle}>{ar ? "اختر مساحة تناسبك" : "Find your space"}</Text></View><Pressable onPress={() => void loadRooms()} style={s.secondary}><Text style={s.secondaryText}>{ar ? "تحديث ↻" : "Refresh ↻"}</Text></Pressable></View>
         <View style={s.actionsRow}>
           <Pressable onPress={() => setShowCreateRoom(v => !v)} style={[s.primary,{flex:1}]}><Text style={s.primaryText}>{showCreateRoom ? (ar ? "إلغاء" : "Cancel") : (ar ? "+ إنشاء غرفة" : "+ Create room")}</Text></Pressable>
-          <Pressable onPress={() => void loadRooms()} style={s.secondary}><Text style={s.secondaryText}>{ar ? "تحديث" : "Refresh"}</Text></Pressable>
         </View>
         {showCreateRoom ? <View style={s.createCard}>
           <Text style={s.formLabel}>{ar ? "اسم الغرفة" : "Room name"}</Text><TextInput value={roomName} onChangeText={setRoomName} placeholder={ar ? "مثلاً: سهرات جيهو" : "e.g. JEHOO Hangout"} placeholderTextColor="#728295" maxLength={80} style={s.field} />
