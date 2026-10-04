@@ -14,7 +14,7 @@
     "@jehoo/shared": "file:../packages/shared",
     "@livekit/react-native": "2.9.8",
     "@livekit/react-native-expo-plugin": "^1.0.2",
-    "@livekit/react-native-webrtc": "144.0.0",
+    "@livekit/react-native-webrtc": "137.0.3",
     "@react-native-async-storage/async-storage": "2.1.0",
     "@supabase/supabase-js": "^2.49.1",
     "expo": "~52.0.0",
