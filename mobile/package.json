@@ -33,7 +33,8 @@
     "livekit-client": "^2.19.0",
     "@config-plugins/react-native-webrtc": "~10.0.0",
     "expo-asset": "~11.0.5",
-    "query-string": "^7.1.3"
+    "query-string": "^7.1.3",
+    "expo-notifications": "~0.29.14"
   },
   "devDependencies": {
     "@types/react": "~18.3.12",
