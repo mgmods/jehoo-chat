@@ -52,11 +52,17 @@ export default function ProfileOnboarding({ user, initialProfile, onComplete, on
   async function chooseAvatar() {
     setError("");
     try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        setError("اسمح للتطبيق بالوصول إلى الاستوديو لاختيار صورة.");
+        return;
+      }
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ["images"],
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.85,
+        exif: false,
       });
       if (result.canceled || !result.assets?.[0]) return;
       const asset = result.assets[0];
@@ -67,12 +73,14 @@ export default function ProfileOnboarding({ user, initialProfile, onComplete, on
       }
       setAvatarBusy(true);
       const response = await fetch(asset.uri);
-      const blob = await response.blob();
+      if (!response.ok) throw new Error("تعذر قراءة الصورة من الاستوديو.");
+      const body = await response.arrayBuffer();
       const ext = (asset.fileName?.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+      const contentType = asset.mimeType || (ext === "png" ? "image/png" : "image/jpeg");
       const path = user.id + "/avatar-" + Date.now() + "." + ext;
-      const { error: uploadError } = await client.storage.from("avatars").upload(path, blob, {
-        upsert: true,
-        contentType: asset.mimeType || "image/jpeg",
+      const { error: uploadError } = await client.storage.from("avatars").upload(path, body, {
+        upsert: false,
+        contentType,
       });
       if (uploadError) throw uploadError;
       const { data } = client.storage.from("avatars").getPublicUrl(path);
@@ -253,7 +261,7 @@ const s = StyleSheet.create({
   keyboard: { flex: 1, backgroundColor: "#FFFFFF" },
   screen: { flex: 1, backgroundColor: "#FFFFFF" },
   scroll: { flex: 1, backgroundColor: "#FFFFFF" },
-  page: { flexGrow: 1, paddingHorizontal: 28, paddingTop: 56, paddingBottom: 18, backgroundColor: "#FFFFFF" },
+  page: { flexGrow: 1, paddingHorizontal: 28, paddingTop: 44, paddingBottom: 16, backgroundColor: "#FFFFFF" },
   hero: { alignItems: "center" },
   title: { color: "#292929", fontSize: 30, lineHeight: 38, fontWeight: "800", textAlign: "center" },
   subtitle: { marginTop: 30, color: "#A5A5A5", fontSize: 19, lineHeight: 27, fontWeight: "400", textAlign: "center" },
@@ -274,9 +282,9 @@ const s = StyleSheet.create({
   rowEnd: { flexDirection: "row", alignItems: "center", gap: 12, marginLeft: 18 },
   labelText: { color: "#A6A6A6", fontSize: 20, lineHeight: 27, fontWeight: "400", textAlign: "left" },
   error: { color: "#B33A3A", fontSize: 13, lineHeight: 19, textAlign: "right", marginTop: 12 },
-  primary: { width: "100%", minHeight: 85, marginTop: 26, borderRadius: 45, backgroundColor: "#19D1AE", alignItems: "center", justifyContent: "center", shadowColor: "#000000", shadowOpacity: 0.12, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 4 },
+  primary: { width: "100%", maxWidth: 560, minHeight: 64, marginTop: 22, borderRadius: 32, backgroundColor: "#19D1AE", alignItems: "center", justifyContent: "center", shadowColor: "#000000", shadowOpacity: 0.12, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 4 },
   primaryBusy: { opacity: 0.75 },
-  primaryText: { color: "#FFFFFF", fontSize: 23, lineHeight: 30, fontWeight: "800" },
+  primaryText: { color: "#FFFFFF", fontSize: 20, lineHeight: 26, fontWeight: "800" },
   languageButton: { alignSelf: "center", flexDirection: "row", alignItems: "center", gap: 7, marginTop: 26, paddingVertical: 8, paddingHorizontal: 14 },
   languageText: { color: "#9A9A9A", fontSize: 15, fontWeight: "500" },
   chevron: { color: "#C9C9C9", fontSize: 26, lineHeight: 28, fontWeight: "300" },
