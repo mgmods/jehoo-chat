@@ -11,6 +11,9 @@ type SeatRow = { room_id:string; seat_number:number; status:"empty"|"occupied"|"
 type ProfileRow = { id:string; display_name:string; avatar_url:string; level:number; vip_level:number };
 type MicRequestRow = { id:string; user_id:string; created_at:string; profiles?:{display_name:string}|null };
 
+async function startLiveKitAudioSession() { const { AudioSession } = await import("@livekit/react-native"); await AudioSession.startAudioSession(); }
+async function stopLiveKitAudioSession() { const { AudioSession } = await import("@livekit/react-native"); await AudioSession.stopAudioSession(); }
+
 export default function VoiceRoomRoute() {
   const params = useLocalSearchParams<{id:string}>();
   const router = useRouter();
@@ -130,7 +133,7 @@ export default function VoiceRoomRoute() {
 
   useEffect(()=>{const client=supabase;if(!client||!roomId)return;const channel=client.channel("room-live-"+roomId).on("postgres_changes",{event:"*",schema:"public",table:"rooms",filter:"id=eq."+roomId},()=>void loadRoom()).on("postgres_changes",{event:"*",schema:"public",table:"room_seats",filter:"room_id=eq."+roomId},()=>void loadRoom()).on("postgres_changes",{event:"*",schema:"public",table:"room_requests",filter:"room_id=eq."+roomId},()=>void loadRoom()).on("postgres_changes",{event:"*",schema:"public",table:"room_members",filter:"room_id=eq."+roomId},()=>void loadRoom()).subscribe();return()=>{void client.removeChannel(channel)}},[roomId,loadRoom]);
 
-  useEffect(()=>()=>{joinAttemptRef.current+=1;const roomInstance=liveRoomRef.current;liveRoomRef.current=null;if(roomInstance){void roomInstance.disconnect();}void import("@livekit/react-native").then(({AudioSession})=>AudioSession.stopAudioSession()).catch(()=>undefined);const client=supabase;if(client&&roomId)void client.rpc("jehoo_leave_room",{p_room_id:roomId});},[roomId]);
+  useEffect(()=>()=>{joinAttemptRef.current+=1;const roomInstance=liveRoomRef.current;liveRoomRef.current=null;if(roomInstance){void roomInstance.disconnect();}void stopLiveKitAudioSession().catch(()=>undefined);const client=supabase;if(client&&roomId)void client.rpc("jehoo_leave_room",{p_room_id:roomId});},[roomId]);
 
   async function joinVoice(password?:string){
     const client=supabase;
@@ -141,7 +144,10 @@ export default function VoiceRoomRoute() {
     setBusy(true);setError("");
     let pendingRoom:LiveKitRoomType|null=null;
     try{
-      // Load native WebRTC/LiveKit only after the user explicitly enters voice.\n      // This keeps the Expo Router startup path free of the Web Streams shim crash.\n      const [{AudioSession},{Room,RoomEvent}]=await Promise.all([import("@livekit/react-native"),import("livekit-client")]);\n      const {error:joinError}=await client.rpc("jehoo_join_room",{p_room_id:room.id,p_password:password??null});
+      // Load native WebRTC/LiveKit only after the user explicitly enters voice.
+      // This keeps the Expo Router startup path free of the Web Streams shim crash.
+      const {Room,RoomEvent}=await import("livekit-client");
+      const {error:joinError}=await client.rpc("jehoo_join_room",{p_room_id:room.id,p_password:password??null});
       if(joinError){
         if(String(joinError.message||"").includes("ROOM_PASSWORD_REQUIRED")){setPasswordModal(true);return;}
         throw joinError;
@@ -151,11 +157,11 @@ export default function VoiceRoomRoute() {
       if(tokenError)throw tokenError;
       if(!data?.serverUrl||!data?.participantToken)throw new Error("Voice token response is incomplete.");
       if(attempt!==joinAttemptRef.current){await client.rpc("jehoo_leave_room",{p_room_id:room.id});return;}
-      await AudioSession.startAudioSession();
-      if(attempt!==joinAttemptRef.current){await AudioSession.stopAudioSession().catch(()=>undefined);await client.rpc("jehoo_leave_room",{p_room_id:room.id});return;}
+      await startLiveKitAudioSession();
+      if(attempt!==joinAttemptRef.current){await stopLiveKitAudioSession().catch(()=>undefined);await client.rpc("jehoo_leave_room",{p_room_id:room.id});return;}
       pendingRoom=new Room();
       await pendingRoom.connect(data.serverUrl,data.participantToken,{});
-      if(attempt!==joinAttemptRef.current){try{await pendingRoom.disconnect()}catch{}pendingRoom=null;await AudioSession.stopAudioSession().catch(()=>undefined);await client.rpc("jehoo_leave_room",{p_room_id:room.id});return;}
+      if(attempt!==joinAttemptRef.current){try{await pendingRoom.disconnect()}catch{}pendingRoom=null;await stopLiveKitAudioSession().catch(()=>undefined);await client.rpc("jehoo_leave_room",{p_room_id:room.id});return;}
       const canPublish=Boolean(data.canPublish);
       setCanSpeak(canPublish);
       let microphoneStarted=false;
@@ -163,7 +169,7 @@ export default function VoiceRoomRoute() {
         try{await pendingRoom.localParticipant.setMicrophoneEnabled(true);microphoneStarted=true;}
         catch{if(attempt===joinAttemptRef.current)Alert.alert("تم الاتصال بالصوت","الميكروفون غير متاح حالياً. يمكنك الاستماع، وتفعيل صلاحية المايك من إعدادات الجهاز.");}
       }
-      if(attempt!==joinAttemptRef.current){try{await pendingRoom.disconnect()}catch{}pendingRoom=null;await AudioSession.stopAudioSession().catch(()=>undefined);await client.rpc("jehoo_leave_room",{p_room_id:room.id});return;}
+      if(attempt!==joinAttemptRef.current){try{await pendingRoom.disconnect()}catch{}pendingRoom=null;await stopLiveKitAudioSession().catch(()=>undefined);await client.rpc("jehoo_leave_room",{p_room_id:room.id});return;}
       setMicEnabled(microphoneStarted);
       liveRoomRef.current=pendingRoom;
       const connectedRoom=pendingRoom;
@@ -171,7 +177,7 @@ export default function VoiceRoomRoute() {
         if(liveRoomRef.current!==connectedRoom)return;
         liveRoomRef.current=null;
         setLiveRoom(null);setLive(null);setMicEnabled(false);setCanSpeak(false);setChatMessages([]);setConversationId(null);
-        void AudioSession.stopAudioSession().catch(()=>undefined);
+        void stopLiveKitAudioSession().catch(()=>undefined);
         void client.rpc("jehoo_leave_room",{p_room_id:room.id}).then(({error:leaveError})=>{
           if(leaveError)setError(leaveError.message);
           else void loadRoom();
@@ -185,7 +191,7 @@ export default function VoiceRoomRoute() {
       if(pendingRoom){try{await pendingRoom.disconnect()}catch{}}
       await client.rpc("jehoo_leave_room",{p_room_id:room.id});
       if(attempt===joinAttemptRef.current)setError(e instanceof Error?e.message:"Unable to connect to the voice room.");
-      await AudioSession.stopAudioSession().catch(()=>undefined);
+      await stopLiveKitAudioSession().catch(()=>undefined);
     }finally{if(attempt===joinAttemptRef.current)setBusy(false)}
   }
   async function exitRoom(){
@@ -211,7 +217,7 @@ export default function VoiceRoomRoute() {
     liveRoomRef.current=null;
     try{await activeRoom?.disconnect()}catch{}
     setLiveRoom(null);setLive(null);setMicEnabled(false);setCanSpeak(false);
-    await AudioSession.stopAudioSession().catch(()=>undefined);
+    await stopLiveKitAudioSession().catch(()=>undefined);
     if(client&&room){
       const {error:leaveError}=await client.rpc("jehoo_leave_room",{p_room_id:room.id});
       if(leaveError)setError(leaveError.message);
