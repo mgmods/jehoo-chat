@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { AudioSession, LiveKitRoom, registerGlobals } from "@livekit/react-native";
-import { Room } from "livekit-client";
+import { Room, RoomEvent } from "livekit-client";
 import { supabase } from "@/lib/supabase";
 
 // LiveKit requires its WebRTC and Web Streams globals to be registered once at startup.
@@ -61,6 +61,8 @@ export default function VoiceRoomRoute() {
     const client=supabase;
     if(!client||!roomId||roomTab!=="chat")return;
     let active=true; let channel:any=null;
+    setChatMessages([]);
+    setConversationId(null);
     const start=async()=>{
       setChatBusy(true);setError("");
       try{
@@ -68,19 +70,16 @@ export default function VoiceRoomRoute() {
         if(convError)throw convError;
         if(!active)return;
         setConversationId(convId as string);
-        const {data,error:messagesError}=await client.from("messages").select("id,conversation_id,sender_id,message_type,body,created_at").eq("conversation_id",convId as string).is("deleted_at",null).order("created_at",{ascending:true}).limit(100);
-        if(messagesError)throw messagesError;
-        const rows=(data??[]) as any[];
-        if(rows.length){const ids=[...new Set(rows.map(m=>m.sender_id))];const {data:people}=await client.from("profiles").select("id,display_name,avatar_url").in("id",ids);const byId:Record<string,any>={};(people??[]).forEach(p=>byId[p.id]=p);rows.forEach(m=>m.profiles=byId[m.sender_id]);}
-        if(active)setChatMessages(rows);
+        // Room chat is session-scoped: never fetch older messages from previous visits.
         channel=client.channel("room-chat-"+String(convId)).on("postgres_changes",{event:"INSERT",schema:"public",table:"messages",filter:"conversation_id=eq."+String(convId)},async(payload)=>{
-          const row=payload.new as any;const {data:profile}=await client.from("profiles").select("id,display_name,avatar_url").eq("id",row.sender_id).maybeSingle();
+          const row=payload.new as any;
+          const {data:profile}=await client.from("profiles").select("id,display_name,avatar_url").eq("id",row.sender_id).maybeSingle();
           if(active)setChatMessages(prev=>prev.some(m=>m.id===row.id)?prev:[...prev,{...row,profiles:profile}]);
         }).subscribe();
       }catch(e){if(active)setError(e instanceof Error?e.message:"تعذر فتح دردشة الغرفة");}
       finally{if(active)setChatBusy(false);}
     };
-    void start();return()=>{active=false;if(channel)void client.removeChannel(channel)};
+    void start();return()=>{active=false;setChatMessages([]);setConversationId(null);if(channel)void client.removeChannel(channel)};
   },[roomId,roomTab]);
   useEffect(()=>{
     const client=supabase;if(!client||!roomId||roomTab!=="gifts")return;let active=true;
@@ -134,6 +133,17 @@ export default function VoiceRoomRoute() {
       await pendingRoom.localParticipant.setMicrophoneEnabled(canPublish);
       setMicEnabled(canPublish);
       liveRoomRef.current=pendingRoom;
+      const connectedRoom=pendingRoom;
+      connectedRoom.on(RoomEvent.Disconnected,()=>{
+        if(liveRoomRef.current!==connectedRoom)return;
+        liveRoomRef.current=null;
+        setLiveRoom(null);setLive(null);setMicEnabled(false);setChatMessages([]);setConversationId(null);
+        void AudioSession.stopAudioSession().catch(()=>undefined);
+        void client.rpc("jehoo_leave_room",{p_room_id:room.id}).then(({error:leaveError})=>{
+          if(leaveError)setError(leaveError.message);
+          else void loadRoom();
+        });
+      });
       setLiveRoom(pendingRoom);
       setLive({url:data.serverUrl,token:data.participantToken});
       pendingRoom=null;
@@ -146,6 +156,8 @@ export default function VoiceRoomRoute() {
   }
   async function exitRoom(){
     const client=supabase;
+    setChatMessages([]);
+    setConversationId(null);
     if(live||liveRoomRef.current){
       await leaveVoice();
       router.replace("/");
@@ -157,7 +169,20 @@ export default function VoiceRoomRoute() {
     }
     router.replace("/");
   }
-  async function leaveVoice(){const client=supabase;try{await liveRoomRef.current?.disconnect()}catch{}liveRoomRef.current=null;setLiveRoom(null);setLive(null);await AudioSession.stopAudioSession().catch(()=>undefined);if(client&&room){const {error:leaveError}=await client.rpc("jehoo_leave_room",{p_room_id:room.id});if(leaveError)setError(leaveError.message);else{setMicRequestSent(false);void loadRoom()}}}
+  async function leaveVoice(){
+    const client=supabase;
+    const activeRoom=liveRoomRef.current;
+    // Clear the ref before disconnecting so the Disconnected listener won't duplicate cleanup.
+    liveRoomRef.current=null;
+    try{await activeRoom?.disconnect()}catch{}
+    setLiveRoom(null);setLive(null);setMicEnabled(false);
+    await AudioSession.stopAudioSession().catch(()=>undefined);
+    if(client&&room){
+      const {error:leaveError}=await client.rpc("jehoo_leave_room",{p_room_id:room.id});
+      if(leaveError)setError(leaveError.message);
+      else{setMicRequestSent(false);void loadRoom()}
+    }
+  }
   async function handleMicrophoneRequest(requestId:string,accept:boolean){const client=supabase;if(!client)return;setHandlingRequest(requestId);setError("");try{const {data:decision,error:handleError}=await client.functions.invoke("room-microphone",{body:{requestId,accept}});if(handleError)throw handleError;if(decision?.error)throw new Error(String(decision.error));await loadRoom()}catch(e){setError(e instanceof Error?e.message:"تعذر معالجة طلب المايك")}finally{setHandlingRequest(null)}}
   async function requestMicrophone(){const client=supabase;if(!client||!room)return;setMicRequestBusy(true);setError("");try{const {error:requestError}=await client.rpc("jehoo_request_microphone",{p_room_id:room.id});if(requestError)throw requestError;setMicRequestSent(true)}catch(e){setError(e instanceof Error?e.message:"تعذر إرسال طلب المايك")}finally{setMicRequestBusy(false)}}
 
