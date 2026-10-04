@@ -38,7 +38,7 @@ export default function HomeScreen() {
       if (authError) setError(authError.message);
       setSession(data.session);
       if (data.session?.user) {
-        const { data: profileData } = await client.from("profiles").select("id,first_name,nickname,gender,birth_date,country,avatar_url,profile_completed").eq("id", data.session.user.id).maybeSingle();
+        const { data: profileData } = await client.from("profiles").select("id,public_id,first_name,nickname,gender,birth_date,country,avatar_url,profile_completed").eq("id", data.session.user.id).maybeSingle();
         if (active) setProfile(profileData);
       } else {
         setProfile(null);
@@ -51,7 +51,7 @@ export default function HomeScreen() {
       if (!active) return;
       setSession(nextSession);
       if (nextSession?.user) {
-        const { data: profileData } = await client.from("profiles").select("id,first_name,nickname,gender,birth_date, country,avatar_url,profile_completed".replace(" ","")).eq("id", nextSession.user.id).maybeSingle();
+        const { data: profileData } = await client.from("profiles").select("id,public_id,first_name,nickname,gender,birth_date,country,avatar_url,profile_completed").eq("id", nextSession.user.id).maybeSingle();
         if (active) setProfile(profileData);
       } else {
         setProfile(null);
@@ -164,7 +164,7 @@ export default function HomeScreen() {
       <Text style={s.body}>{ar ? "سجّل الدخول لعرض الغرف الحقيقية المرتبطة بحسابك." : "Sign in to discover live rooms connected to your account."}</Text>
       <Pressable disabled={authBusy} onPress={signIn} style={s.primary}>{authBusy ? <ActivityIndicator color="#06251E" /> : <Text style={s.primaryText}>{ar ? "المتابعة باستخدام Google" : "Continue with Google"}</Text>}</Pressable>
     </View> : <>
-      <View style={s.sectionHeader}><View><Text style={s.sectionTitle}>{ar ? "الغرف الصوتية" : "Voice rooms"}</Text><Text style={s.subtitle}>{ar ? "بيانات مباشرة من قاعدة البيانات" : "Live data from your database"}</Text></View><Pressable onPress={signOut} style={s.secondary}><Text style={s.secondaryText}>{copy.signOut}</Text></Pressable></View>
+      <View style={s.sectionHeader}><View><Text style={s.sectionTitle}>{ar ? "الغرف الصوتية" : "Voice rooms"}</Text><Text style={s.subtitle}>{ar ? `ID الخاص بك: ${profile?.public_id ?? "—"}` : `Your ID: ${profile?.public_id ?? "—"}`}</Text></View><Pressable onPress={signOut} style={s.secondary}><Text style={s.secondaryText}>{copy.signOut}</Text></Pressable></View>
       <View style={s.actionsRow}>
         <Pressable onPress={() => setShowCreateRoom((value) => !value)} style={s.primary}><Text style={s.primaryText}>{showCreateRoom ? (ar ? "إلغاء" : "Cancel") : (ar ? "+ إنشاء غرفة" : "+ Create room")}</Text></Pressable>
         <Pressable onPress={() => void loadRooms()} style={s.secondary}><Text style={s.secondaryText}>{ar ? "تحديث" : "Refresh"}</Text></Pressable>
