@@ -127,7 +127,7 @@ export default function VoiceRoomRoute() {
 
   useEffect(()=>{const client=supabase;if(!client||!roomId)return;const channel=client.channel("room-live-"+roomId).on("postgres_changes",{event:"*",schema:"public",table:"rooms",filter:"id=eq."+roomId},()=>void loadRoom()).on("postgres_changes",{event:"*",schema:"public",table:"room_seats",filter:"room_id=eq."+roomId},()=>void loadRoom()).on("postgres_changes",{event:"*",schema:"public",table:"room_requests",filter:"room_id=eq."+roomId},()=>void loadRoom()).on("postgres_changes",{event:"*",schema:"public",table:"room_members",filter:"room_id=eq."+roomId},()=>void loadRoom()).subscribe();return()=>{void client.removeChannel(channel)}},[roomId,loadRoom]);
 
-  useEffect(()=>()=>{const roomInstance=liveRoomRef.current;if(roomInstance){void roomInstance.disconnect();}void AudioSession.stopAudioSession().catch(()=>undefined);},[]);
+  useEffect(()=>()=>{const roomInstance=liveRoomRef.current;liveRoomRef.current=null;if(roomInstance){void roomInstance.disconnect();}void AudioSession.stopAudioSession().catch(()=>undefined);const client=supabase;if(client&&roomId)void client.rpc("jehoo_leave_room",{p_room_id:roomId});},[roomId]);
 
   async function joinVoice(password?:string){
     const client=supabase;
@@ -359,8 +359,8 @@ function openMemberActions(targetId:string,name:string){
       </ScrollView>
 
       <View style={[s.roomDock,{bottom:Math.max(8,insets.bottom+4)}]}>
-        <Pressable onPress={()=>router.back()} style={s.dockButton}><Text style={s.dockIcon}>↩</Text><Text style={s.dockLabel}>رجوع</Text></Pressable>
-        <Pressable onPress={()=>router.replace("/")} style={s.dockButton}><Text style={s.dockIcon}>⌂</Text><Text style={s.dockLabel}>هوم</Text></Pressable>
+        <Pressable onPress={()=>void exitRoom()} style={s.dockButton}><Text style={s.dockIcon}>↩</Text><Text style={s.dockLabel}>رجوع</Text></Pressable>
+        <Pressable onPress={()=>void exitRoom()} style={s.dockButton}><Text style={s.dockIcon}>⌂</Text><Text style={s.dockLabel}>هوم</Text></Pressable>
         <Pressable onPress={()=>setRoomTab("chat")} style={s.dockButton}><Text style={s.dockIcon}>✉</Text><Text style={s.dockLabel}>رسائل</Text></Pressable>
         <Pressable onPress={()=>setRoomTab("gifts")} style={s.giftDock}><Text style={{fontSize:24}}>🎁</Text></Pressable>
         <Pressable onPress={()=>setRoomTab("enter")} style={s.dockButton}><Text style={s.dockIcon}>🎙</Text><Text style={s.dockLabel}>ادخل</Text></Pressable>
