@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { ActivityIndicator, FlatList, Image, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, FlatList, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { supabase } from "@/lib/supabase";
 import { COUNTRIES } from "@/data/countries";
 
@@ -52,7 +52,7 @@ export default function ProfileOnboarding({ user, initialProfile, onComplete }: 
     onComplete();
   }
 
-  return <View style={s.page}>
+  return <ScrollView style={s.scroll} contentContainerStyle={s.page} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
     <View style={s.top}>
       <View style={s.progress}><View style={s.progressFill} /></View>
       <Text style={s.brand}>JEHOO <Text style={s.mint}>●</Text> CHAT</Text>
@@ -97,11 +97,12 @@ export default function ProfileOnboarding({ user, initialProfile, onComplete }: 
       <Pressable disabled={busy} onPress={submit} style={[s.primary, busy && { opacity: .7 }]}>{busy ? <ActivityIndicator color="#06251E" /> : <Text style={s.primaryText}>إنشاء الحساب والمتابعة</Text>}</Pressable>
       <Text style={s.privacy}>بمتابعتك، يتم حفظ ملفك على Jehoo حتى لا تضطر لتعبئة بياناتك مرة أخرى.</Text>
     </View>
-  </View>;
+  </ScrollView>;
 }
 
 const s = StyleSheet.create({
-  page:{flex:1,backgroundColor:"#0A1118",paddingHorizontal:20,paddingTop:18},
+  scroll:{flex:1,backgroundColor:"#0A1118"},
+  page:{flexGrow:1,backgroundColor:"#0A1118",paddingHorizontal:20,paddingTop:18,paddingBottom:140},
   top:{alignItems:"flex-end"},
   progress:{height:4,width:"100%",backgroundColor:"#263342",borderRadius:4,marginBottom:24},
   progressFill:{height:4,width:"25%",backgroundColor:"#31D6B0",borderRadius:4},
