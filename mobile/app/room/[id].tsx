@@ -130,6 +130,39 @@ export default function VoiceRoomRoute() {
   }
   async function setRole(targetId:string,role:string){const client=supabase;if(!client)return;setActingUser(targetId);setError("");try{const {error}=await client.rpc("jehoo_set_room_role",{p_room_id:roomId,p_target_user_id:targetId,p_role:role});if(error)throw error;await loadRoom()}catch(e){setError(e instanceof Error?e.message:"تعذر تغيير الصلاحية")}finally{setActingUser(null)}}
 
+  async function toggleFollow(){
+    if(!supabase||!currentUserId||!room?.owner_id)return;
+    try{
+      if(followed){const {error}=await supabase.from("user_follows").delete().eq("follower_id",currentUserId).eq("following_id",room.owner_id);if(error)throw error;setFollowed(false);}
+      else{const {error}=await supabase.from("user_follows").insert({follower_id:currentUserId,following_id:room.owner_id});if(error)throw error;setFollowed(true);}
+    }catch(e){setError(e instanceof Error?e.message:"تعذر تحديث المتابعة");}
+  }
+  async function takeSeat(seatNumber:number){
+    if(!supabase||!room)return;
+    setBusy(true);setError("");
+    try{
+      const {data:{user}}=await supabase.auth.getUser(); if(!user)throw new Error("سجّل الدخول أولاً");
+      const {data:existing}=await supabase.from("room_seats").select("seat_number").eq("room_id",room.id).eq("user_id",user.id).eq("status","occupied").maybeSingle();
+      if(existing?.seat_number===seatNumber){await loadRoom();return;}
+      const {error}=await supabase.from("room_seats").update({status:"occupied",user_id:user.id,reserved_for:null,updated_at:new Date().toISOString()}).eq("room_id",room.id).eq("seat_number",seatNumber).eq("status","empty").is("user_id",null);
+      if(error)throw error; await loadRoom();
+    }catch(e){setError(e instanceof Error?e.message:"تعذر الجلوس على المقعد");}
+    finally{setBusy(false);}
+  }
+  async function toggleSeatLock(seatNumber:number,locked:boolean){
+    if(!supabase||!canModerate)return;
+    try{const {error}=await supabase.from("room_seats").update({status:locked?"locked":"empty",user_id:null,reserved_for:null,updated_at:new Date().toISOString()}).eq("room_id",roomId).eq("seat_number",seatNumber);if(error)throw error;await loadRoom();}
+    catch(e){setError(e instanceof Error?e.message:"تعذر تغيير حالة المقعد");}
+  }
+  async function saveRoomSettings(){
+    if(!supabase||!room||!canModerate)return;
+    setSettingsBusy(true);setError("");
+    try{
+      const {error}=await supabase.rpc("jehoo_update_room_settings",{p_room_id:room.id,p_name:settingsName,p_description:settingsDescription,p_cover_url:settingsCover||null,p_max_seats:Number(settingsSeats),p_password_enabled:settingsPasswordEnabled,p_password:settingsPassword||null,p_welcome_message:settingsWelcome});
+      if(error)throw error; setSettingsPassword(""); await loadRoom(); Alert.alert("تم الحفظ","تم تحديث بيانات الغرفة.");
+    }catch(e){setError(e instanceof Error?e.message:"تعذر حفظ إعدادات الغرفة");}
+    finally{setSettingsBusy(false);}
+  }
   async function changeRoomStatus(status:"active"|"locked"|"closed"){
     if(!isHost||!supabase)return;
     setError("");
