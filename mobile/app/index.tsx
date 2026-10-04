@@ -175,6 +175,15 @@ export default function HomeScreen() {
     if (signOutError) setError(signOutError.message);
   }
 
+  if (!profileLoading && session && !profile?.profile_completed) {
+    return <ProfileOnboarding
+      user={session.user}
+      initialProfile={profile}
+      onComplete={() => void refreshProfile()}
+      onToggleLanguage={() => setLocale(locale === "ar" ? "en" : "ar")}
+    />;
+  }
+
   return <SafeAreaView style={s.safe}>
     <View style={s.header}>
       <View><Text style={s.brand}>JEHOO <Text style={s.mint}>●</Text> CHAT</Text><Text style={s.subtitle}>{ar ? "مساحتك، صوتك، أصدقاؤك" : "Your space, your voice, your friends"}</Text></View>
