@@ -107,7 +107,7 @@ export default function VoiceRoomRoute() {
     if(room.status==="closed"){setError("الغرفة مغلقة ولا يمكن الانضمام إليها.");return;}
     if(room.status==="locked"&&!isHost){setError("الغرفة مقفلة حالياً.");return;}
     setBusy(true);setError("");
-    try{const {error:joinError}=await client.rpc("jehoo_join_room",{p_room_id:room.id,p_password:password??null});if(joinError){ if(String(joinError.message||"").includes("ROOM_PASSWORD_REQUIRED")){setPasswordModal(true);return;} throw joinError; }const {data,error:tokenError}=await client.functions.invoke("livekit-token",{body:{roomName:room.livekit_room_name}});if(tokenError)throw tokenError;if(!data?.serverUrl||!data?.participantToken)throw new Error("Voice token response is incomplete.");registerGlobals();await AudioSession.startAudioSession();setLiveRoom(new Room());setLive({url:data.serverUrl,token:data.participantToken})}catch(e){if(client&&room)await client.rpc("jehoo_leave_room",{p_room_id:room.id});setError(e instanceof Error?e.message:"Unable to connect to the voice room.");await AudioSession.stopAudioSession().catch(()=>undefined)}finally{setBusy(false)}}
+    try{const {error:joinError}=await client.rpc("jehoo_join_room",{p_room_id:room.id,p_password:password??null});if(joinError){ if(String(joinError.message||"").includes("ROOM_PASSWORD_REQUIRED")){setPasswordModal(true);return;} throw joinError; }const {data,error:tokenError}=await client.functions.invoke("livekit-token",{body:{roomName:room.livekit_room_name}});if(tokenError)throw tokenError;if(!data?.serverUrl||!data?.participantToken)throw new Error("Voice token response is incomplete.");registerGlobals();await AudioSession.startAudioSession();const connectedRoom=new Room();await connectedRoom.connect(data.serverUrl,data.participantToken,{});const canPublish=Boolean(data.canPublish);if(canPublish){await connectedRoom.localParticipant.setMicrophoneEnabled(true);}else{await connectedRoom.localParticipant.setMicrophoneEnabled(false);}setMicEnabled(canPublish);setLiveRoom(connectedRoom);setLive({url:data.serverUrl,token:data.participantToken})}catch(e){if(client&&room)await client.rpc("jehoo_leave_room",{p_room_id:room.id});setError(e instanceof Error?e.message:"Unable to connect to the voice room.");await AudioSession.stopAudioSession().catch(()=>undefined)}finally{setBusy(false)}}
   async function leaveVoice(){const client=supabase;try{await liveRoom?.disconnect()}catch{}setLiveRoom(null);setLive(null);await AudioSession.stopAudioSession().catch(()=>undefined);if(client&&room){const {error:leaveError}=await client.rpc("jehoo_leave_room",{p_room_id:room.id});if(leaveError)setError(leaveError.message);else{setMicRequestSent(false);void loadRoom()}}}
   async function handleMicrophoneRequest(requestId:string,accept:boolean){const client=supabase;if(!client)return;setHandlingRequest(requestId);setError("");try{const {data:decision,error:handleError}=await client.functions.invoke("room-microphone",{body:{requestId,accept}});if(handleError)throw handleError;if(decision?.error)throw new Error(String(decision.error));await loadRoom()}catch(e){setError(e instanceof Error?e.message:"تعذر معالجة طلب المايك")}finally{setHandlingRequest(null)}}
   async function requestMicrophone(){const client=supabase;if(!client||!room)return;setMicRequestBusy(true);setError("");try{const {error:requestError}=await client.rpc("jehoo_request_microphone",{p_room_id:room.id});if(requestError)throw requestError;setMicRequestSent(true)}catch(e){setError(e instanceof Error?e.message:"تعذر إرسال طلب المايك")}finally{setMicRequestBusy(false)}}
@@ -144,14 +144,14 @@ export default function VoiceRoomRoute() {
       const {data:{user}}=await supabase.auth.getUser(); if(!user)throw new Error("سجّل الدخول أولاً");
       const {data:existing}=await supabase.from("room_seats").select("seat_number").eq("room_id",room.id).eq("user_id",user.id).eq("status","occupied").maybeSingle();
       if(existing?.seat_number===seatNumber){await loadRoom();return;}
-      const {error}=await supabase.from("room_seats").update({status:"occupied",user_id:user.id,reserved_for:null,updated_at:new Date().toISOString()}).eq("room_id",room.id).eq("seat_number",seatNumber).eq("status","empty").is("user_id",null);
+      const {error}=await supabase.rpc("jehoo_request_seat",{p_room_id:room.id,p_seat_number:seatNumber});
       if(error)throw error; await loadRoom();
     }catch(e){setError(e instanceof Error?e.message:"تعذر الجلوس على المقعد");}
     finally{setBusy(false);}
   }
   async function toggleSeatLock(seatNumber:number,locked:boolean){
     if(!supabase||!canModerate)return;
-    try{const {error}=await supabase.from("room_seats").update({status:locked?"locked":"empty",user_id:null,reserved_for:null,updated_at:new Date().toISOString()}).eq("room_id",roomId).eq("seat_number",seatNumber);if(error)throw error;await loadRoom();}
+    try{const {error}=await supabase.rpc("jehoo_set_seat_lock",{p_room_id:roomId,p_seat_number:seatNumber,p_locked:locked});if(error)throw error;await loadRoom();}
     catch(e){setError(e instanceof Error?e.message:"تعذر تغيير حالة المقعد");}
   }
   async function saveRoomSettings(){
@@ -256,7 +256,7 @@ function openMemberActions(targetId:string,name:string){
         <Pressable onPress={()=>setRoomTab("enter")} style={s.dockButton}><Text style={s.dockIcon}>🎙</Text><Text style={s.dockLabel}>ادخل</Text></Pressable>
       </View>
 
-      {live?<LiveKitRoom serverUrl={live.url} token={live.token} connect={Boolean(liveRoom)} audio={false} video={false}/>:null}
+      {live?<LiveKitRoom room={liveRoom??undefined} serverUrl={live.url} token={live.token} connect={false} audio={false} video={false}/>:null}
       <Modal visible={passwordModal} transparent animationType="fade" onRequestClose={()=>setPasswordModal(false)}><View style={s.modalBackdrop}><View style={s.passwordCard}><Text style={s.modalTitle}>الغرفة محمية بكلمة سر</Text><Text style={s.modalText}>أدخل كلمة السر للدخول.</Text><TextInput value={joinPassword} onChangeText={setJoinPassword} secureTextEntry placeholder="كلمة السر" placeholderTextColor="#8AA39A" style={s.passwordInput}/><View style={s.modalRow}><Pressable onPress={()=>{setPasswordModal(false);setJoinPassword("")}} style={s.modalCancel}><Text style={s.modalCancelText}>إلغاء</Text></Pressable><Pressable onPress={()=>{setPasswordModal(false);void joinVoice(joinPassword);}} style={s.modalConfirm}><Text style={s.modalConfirmText}>دخول</Text></Pressable></View></View></View></Modal>
     </>}
   </SafeAreaView>;
