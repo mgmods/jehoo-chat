@@ -131,7 +131,7 @@ export default function VoiceRoomRoute() {
     const client=supabase;
     if(!client||!room||busy||liveRoomRef.current)return;
     if(room.status==="closed"){setError("الغرفة مغلقة ولا يمكن الانضمام إليها.");return;}
-    if(room.status==="locked"&&!isHost){setError("الغرفة مقفلة حالياً.");return;}
+    if(room.status==="locked"&&!canModerate){setError("الغرفة مقفلة حالياً.");return;}
     setBusy(true);setError("");
     let pendingRoom:Room|null=null;
     try{
