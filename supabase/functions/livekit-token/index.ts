@@ -55,6 +55,11 @@ Deno.serve(async (req: Request) => {
     const { data: membership, error: memberError } = await supabase.from("room_members")
       .select("room_role,muted").eq("room_id", room.id).eq("user_id", user.id).maybeSingle();
     if (memberError) return json({ error: "Room authorization failed" }, 500);
+    // The join RPC validates room passwords and creates membership. Never issue
+    // a token to someone who bypassed that flow with a direct Edge Function call.
+    if (user.id !== room.owner_id && !membership) {
+      return json({ error: "Join the room before requesting a voice token" }, 403);
+    }
     const role = user.id === room.owner_id ? "host" : membership?.room_role ?? "listener";
     if (room.status === "locked" && !["host","co_host","moderator"].includes(role)) {
       return json({ error: "Room is locked" }, 403);
