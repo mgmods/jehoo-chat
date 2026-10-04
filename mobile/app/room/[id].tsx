@@ -46,8 +46,12 @@ export default function VoiceRoomRoute() {
     if(user&&!host){const {data:member}=await client.from("room_members").select("room_role").eq("room_id",roomId).eq("user_id",user.id).maybeSingle();moderator=["co_host","moderator"].includes(member?.room_role??"");}
     setCanModerate(host||moderator);
     if(host){const [{data:membersData},{data:bansData}]=await Promise.all([client.from("room_members").select("user_id,room_role,muted,profiles(display_name)").eq("room_id",roomId).order("room_role"),client.from("room_bans").select("user_id,reason,created_at,profiles(display_name)").eq("room_id",roomId).order("created_at",{ascending:false})]);setMembers(membersData??[]);setBans(bansData??[]);const {data:requests}=await client.from("room_requests").select("id,user_id,created_at,profiles(display_name)").eq("room_id",roomId).eq("request_type","microphone").eq("status","pending").order("created_at",{ascending:true});setPendingMicRequests((requests??[]) as unknown as MicRequestRow[]);}else {setPendingMicRequests([]);setMembers([]);setBans([]);}
+    if(user&&liveRoom){
+      const {data:latestRequest}=await client.from("room_requests").select("status").eq("room_id",roomId).eq("user_id",user.id).eq("request_type","microphone").order("created_at",{ascending:false}).limit(1).maybeSingle();
+      if(latestRequest?.status==="approved"){try{await liveRoom.localParticipant.setMicrophoneEnabled(true);setMicEnabled(true)}catch{}}
+    }
     setLoading(false);
-  },[roomId]);
+  },[roomId,liveRoom]);
 
   useEffect(()=>{void loadRoom()},[loadRoom]);
   useEffect(()=>{
