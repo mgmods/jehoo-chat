@@ -31,6 +31,7 @@ export default function VoiceRoomRoute() {
   const [handlingRequest,setHandlingRequest]=useState<string|null>(null), [actingUser,setActingUser]=useState<string|null>(null); const [showAdmin,setShowAdmin]=useState(false), [members,setMembers]=useState<any[]>([]), [bans,setBans]=useState<any[]>([]), [showBans,setShowBans]=useState(false); const [roomTab,setRoomTab]=useState<"all"|"chat"|"gifts"|"enter">("all");
   const [conversationId,setConversationId]=useState<string|null>(null), [chatMessages,setChatMessages]=useState<any[]>([]), [chatDraft,setChatDraft]=useState(""), [chatBusy,setChatBusy]=useState(false);
   const [giftCatalog,setGiftCatalog]=useState<any[]>([]), [selectedRecipient,setSelectedRecipient]=useState<string|null>(null), [walletCoins,setWalletCoins]=useState<number|null>(null), [giftBusy,setGiftBusy]=useState(false);
+  const isRoomParticipant=Boolean(currentUserId&&(room?.owner_id===currentUserId||seats.some(seat=>seat.user_id===currentUserId&&seat.status==="occupied")));
 
   const loadRoom=useCallback(async()=>{
     const client=supabase;
@@ -59,7 +60,7 @@ export default function VoiceRoomRoute() {
   useEffect(()=>{void loadRoom()},[loadRoom]);
   useEffect(()=>{
     const client=supabase;
-    if(!client||!roomId)return;
+    if(!client||!roomId||!isRoomParticipant)return;
     let active=true; let channel:any=null;
     setChatMessages([]);
     setConversationId(null);
@@ -99,7 +100,7 @@ export default function VoiceRoomRoute() {
       finally{if(active)setChatBusy(false);}
     };
     void start();return()=>{active=false;setChatMessages([]);setConversationId(null);if(channel)void client.removeChannel(channel)};
-  },[roomId]);
+  },[roomId,isRoomParticipant]);
   useEffect(()=>{
     const client=supabase;if(!client||!roomId||roomTab!=="gifts")return;let active=true;
     const loadGifts=async()=>{try{const [{data:gifts,error:giftsError},{data:{user}}]=await Promise.all([client.from("room_gift_catalog").select("gift_key,title,emoji,price").eq("is_active",true).order("price"),client.auth.getUser()]);if(giftsError)throw giftsError;if(active)setGiftCatalog(gifts??[]);if(user){const {data:wallet}=await client.from("wallets").select("coins").eq("user_id",user.id).maybeSingle();if(active)setWalletCoins(wallet?.coins??0);}}catch(e){if(active)setError(e instanceof Error?e.message:"تعذر تحميل الهدايا");}};
@@ -166,6 +167,7 @@ export default function VoiceRoomRoute() {
       setLiveRoom(pendingRoom);
       setLive({url:data.serverUrl,token:data.participantToken});
       pendingRoom=null;
+      void loadRoom();
     }catch(e){
       if(pendingRoom){try{await pendingRoom.disconnect()}catch{}}
       await client.rpc("jehoo_leave_room",{p_room_id:room.id});
