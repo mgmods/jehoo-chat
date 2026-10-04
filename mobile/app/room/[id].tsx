@@ -148,7 +148,8 @@ export default function VoiceRoomRoute() {
     try{
       // Load native WebRTC/LiveKit only after the user explicitly enters voice.
       // This keeps the Expo Router startup path free of the Web Streams shim crash.
-      await ensureLiveKitGlobals();\n      const {Room,RoomEvent}=await import("livekit-client");
+      await ensureLiveKitGlobals(); 
+      const {Room,RoomEvent}=await import("livekit-client");
       const {error:joinError}=await client.rpc("jehoo_join_room",{p_room_id:room.id,p_password:password??null});
       if(joinError){
         if(String(joinError.message||"").includes("ROOM_PASSWORD_REQUIRED")){setPasswordModal(true);return;}
