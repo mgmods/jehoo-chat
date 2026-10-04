@@ -103,7 +103,7 @@ export default function RootLayout() {
     {showSplash && splash?.image_url ? <View style={styles.splash}>
       <Image
         source={{ uri: splash.image_url }}
-        resizeMode="contain"
+        resizeMode="cover"
         style={styles.image}
         accessibilityLabel="JEHOO CHAT splash screen"
       />
