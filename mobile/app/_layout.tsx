@@ -26,7 +26,7 @@ export default function RootLayout() {
         if (status !== "granted" || !active) return;
         const token = (await Notifications.getExpoPushTokenAsync()).data;
         if (!active) return;
-        await supabase.from("push_tokens").upsert({ user_id: userId, expo_push_token: token, platform: "mobile", updated_at: new Date().toISOString() }, { onConflict: "expo_push_token" });
+        await supabase?.from("push_tokens").upsert({ user_id: userId, expo_push_token: token, platform: "mobile", updated_at: new Date().toISOString() }, { onConflict: "expo_push_token" });
         await Notifications.setNotificationChannelAsync("official", { name: "الرسائل الرسمية", importance: Notifications.AndroidImportance.MAX });
       } catch (error) { console.warn("Push registration failed", error); }
     };
