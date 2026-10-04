@@ -4,7 +4,6 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { supabase } from "@/lib/supabase";
 import * as ImagePicker from "expo-image-picker";
 import { COUNTRIES } from "@/data/countries";
-import Ionicons from "@expo/vector-icons/Ionicons";
 
 type Props = {
   user: any;
@@ -159,7 +158,7 @@ export default function ProfileOnboarding({ user, initialProfile, onComplete, on
             <View style={s.avatarWrap}>
               {avatarUrl ? <Image source={{ uri: avatarUrl }} style={s.avatar} /> : <View style={[s.avatar, s.avatarEmpty]}><Text style={s.avatarLetter}>م</Text></View>}
               <Pressable disabled={avatarBusy} onPress={() => void chooseAvatar()} style={s.cameraButton} accessibilityLabel="اختيار صورة الملف الشخصي">
-                <Ionicons name="camera" size={26} color="#FFFFFF" />
+                <View style={s.cameraGlyph}><View style={s.cameraGlyphTop} /><View style={s.cameraLens} /></View>
               </Pressable>
             </View>
           </View>
@@ -169,7 +168,7 @@ export default function ProfileOnboarding({ user, initialProfile, onComplete, on
             <View style={s.rows}>
               <Pressable onPress={() => openTextField("nickname")} style={s.infoRow}>
                 <Text style={s.valueText} numberOfLines={1}>{nickname || "اختيار"}</Text>
-                <View style={s.rowEnd}><Text style={s.labelText}>اللقب</Text><Ionicons name="chevron-forward" size={18} color="#C9C9C9" /></View>
+                <View style={s.rowEnd}><Text style={s.labelText}>اللقب</Text><Text style={s.chevron}>›</Text></View>
               </Pressable>
               <Pressable onPress={() => setActiveField("gender")} style={s.infoRow}>
                 <Text style={s.valueText}>{gender === "female" ? "أنثى" : gender === "male" ? "ذكر" : "اختيار"}</Text>
@@ -196,7 +195,6 @@ export default function ProfileOnboarding({ user, initialProfile, onComplete, on
           </View>
 
           <Pressable onPress={() => onToggleLanguage?.()} style={s.languageButton}>
-            <Ionicons name="language-outline" size={18} color="#9A9A9A" />
             <Text style={s.languageText}>العربية</Text>
           </Pressable>
         </ScrollView>
@@ -237,10 +235,10 @@ export default function ProfileOnboarding({ user, initialProfile, onComplete, on
 
         <Modal visible={activeField === "country"} transparent animationType="slide" onRequestClose={() => setActiveField(null)}>
           <View style={s.modalBackdrop}><View style={s.countryModal}>
-            <View style={s.modalHeader}><Text style={s.modalTitle}>الدولة</Text><Pressable onPress={() => setActiveField(null)}><Ionicons name="close" size={24} color="#292929" /></Pressable></View>
+            <View style={s.modalHeader}><Text style={s.modalTitle}>الدولة</Text><Pressable onPress={() => setActiveField(null)}><Text style={s.closeIcon}>×</Text></Pressable></View>
             <FlatList data={COUNTRIES} keyExtractor={(item) => item.code} showsVerticalScrollIndicator={false} renderItem={({ item }) => (
               <Pressable onPress={() => { setCountry(item.code); setActiveField(null); }} style={s.countryRow}>
-                <Text style={s.countryFlag}>{item.flag}</Text><Text style={s.countryName}>{item.name}</Text>{item.code === country ? <Ionicons name="checkmark" size={20} color="#19D1AE" /> : null}
+                <Text style={s.countryFlag}>{item.flag}</Text><Text style={s.countryName}>{item.name}</Text>{item.code === country ? <Text style={s.checkIcon}>✓</Text> : null}
               </Pressable>
             )} />
           </View></View>
@@ -263,6 +261,9 @@ const s = StyleSheet.create({
   avatarEmpty: { backgroundColor: "#90766C", alignItems: "center", justifyContent: "center" },
   avatarLetter: { color: "#FFFFFF", fontSize: 78, fontWeight: "500" },
   cameraButton: { position: "absolute", left: -2, bottom: -4, width: 60, height: 60, borderRadius: 30, backgroundColor: "#19D1AE", alignItems: "center", justifyContent: "center", shadowColor: "#000000", shadowOpacity: 0.14, shadowRadius: 6, shadowOffset: { width: 0, height: 3 }, elevation: 3 },
+  cameraGlyph: { width: 28, height: 20, borderRadius: 4, borderWidth: 2, borderColor: "#FFFFFF", alignItems: "center", justifyContent: "center", position: "relative" },
+  cameraGlyphTop: { position: "absolute", width: 9, height: 4, borderRadius: 2, backgroundColor: "#FFFFFF", top: -5, left: 7 },
+  cameraLens: { width: 9, height: 9, borderRadius: 5, borderWidth: 2, borderColor: "#FFFFFF" },
   infoSection: { width: "100%" },
   sectionTitle: { color: "#292929", fontSize: 29, lineHeight: 36, fontWeight: "800", textAlign: "right", marginBottom: 10 },
   rows: { width: "100%" },
@@ -277,6 +278,9 @@ const s = StyleSheet.create({
   primaryText: { color: "#FFFFFF", fontSize: 23, lineHeight: 30, fontWeight: "800" },
   languageButton: { alignSelf: "center", flexDirection: "row", alignItems: "center", gap: 7, marginTop: 26, paddingVertical: 8, paddingHorizontal: 14 },
   languageText: { color: "#9A9A9A", fontSize: 15, fontWeight: "500" },
+  chevron: { color: "#C9C9C9", fontSize: 26, lineHeight: 28, fontWeight: "300" },
+  closeIcon: { color: "#292929", fontSize: 28, lineHeight: 28, fontWeight: "300" },
+  checkIcon: { color: "#19D1AE", fontSize: 20, fontWeight: "800" },
   modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.24)", justifyContent: "center", padding: 24 },
   modalCard: { backgroundColor: "#FFFFFF", borderRadius: 24, padding: 22, shadowColor: "#000000", shadowOpacity: 0.16, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 8 },
   modalTitle: { color: "#292929", fontSize: 22, fontWeight: "800", textAlign: "right", marginBottom: 16 },
