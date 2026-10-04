@@ -1,18 +1,15 @@
-import "../src/polyfills";
 import { useEffect, useRef, useState } from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { supabase } from "@/lib/supabase";
 
-
 type SplashSettings = { image_url: string; duration_seconds: number };
 
 export default function RootLayout() {
   const [splash, setSplash] = useState<SplashSettings | null>(null);
   const [splashLoading, setSplashLoading] = useState(true);
-  const [showSplash, setShowSplash] = useState(true);
-  const timerStarted = useRef(false);
+  const [showSplash, setShowSplash] = useState(false);
   const splashTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -34,7 +31,6 @@ export default function RootLayout() {
     const applySettings = (row: any) => {
       if (!active) return;
       if (splashTimeout.current) clearTimeout(splashTimeout.current);
-      timerStarted.current = false;
       if (row?.image_url) {
         setSplash({
           image_url: row.image_url,
@@ -56,8 +52,9 @@ export default function RootLayout() {
           .maybeSingle();
         if (!active) return;
         if (!error) applySettings(data);
+        else setShowSplash(false);
       } catch {
-        // Keep app usable if remote settings are temporarily unavailable.
+        if (active) setShowSplash(false);
       } finally {
         settled = true;
         if (active) setSplashLoading(false);
@@ -103,19 +100,15 @@ export default function RootLayout() {
   return <>
     <StatusBar style="light" />
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#0A1118" } }} />
-    {showSplash && <View style={styles.splash}>
-      {splash ? <Image
+    {showSplash && splash?.image_url ? <View style={styles.splash}>
+      <Image
         source={{ uri: splash.image_url }}
         resizeMode="contain"
         style={styles.image}
         accessibilityLabel="JEHOO CHAT splash screen"
-      /> : <View style={styles.brand}>
-        <Text style={styles.brandText}>JEHOO <Text style={styles.dot}>●</Text> CHAT</Text>
-        <Text style={styles.subtitle}>VOICE · CHAT · COMMUNITY</Text>
-        {splashLoading && <Text style={styles.subtitle}>جارٍ التحميل…</Text>}
-      </View>}
+      />
       <Pressable accessibilityRole="button" accessibilityLabel="تخطي شاشة البداية" onPress={skipSplash} style={styles.skipButton}><Text style={styles.skipText}>تخطي ›</Text></Pressable>
-    </View>}
+    </View> : null}
   </>;
 }
 
@@ -130,8 +123,4 @@ const styles = StyleSheet.create({
   image: { width: "100%", height: "100%" },
   skipButton: { position: "absolute", bottom: 48, right: 24, paddingVertical: 10, paddingHorizontal: 18, borderRadius: 24, backgroundColor: "rgba(0,0,0,0.42)", borderWidth: 1, borderColor: "rgba(255,255,255,0.45)" },
   skipText: { color: "#FFFFFF", fontSize: 15, fontWeight: "700" },
-  brand: { alignItems: "center", gap: 10 },
-  brandText: { color: "#F2F7FA", fontSize: 30, fontWeight: "900", letterSpacing: 2 },
-  dot: { color: "#31D6B0" },
-  subtitle: { color: "#94A3B8", fontSize: 10, letterSpacing: 3 },
 });
