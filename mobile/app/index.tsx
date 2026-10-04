@@ -10,7 +10,7 @@ import ProfileOnboarding from "@/components/ProfileOnboarding";
 
 WebBrowser.maybeCompleteAuthSession();
 
-type Room = { id: string; owner_id:string; name: string; description: string; cover_url:string|null; status: "active" | "locked" | "closed"; is_featured: boolean; max_seats:number; password_enabled:boolean; created_at: string; owner?:{display_name:string;avatar_url:string}|null };
+type Room = { id: string; owner_id:string; name: string; description: string; cover_url:string|null; status: "active" | "locked" | "closed"; is_featured: boolean; max_seats:number; password_enabled:boolean; created_at: string; owner?:{display_name:string;avatar_url:string;country?:string|null}|null };
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -30,9 +30,21 @@ export default function HomeScreen() {
   const [roomDescription, setRoomDescription] = useState("");
   const [createBusy, setCreateBusy] = useState(false);
   const [tab, setTab] = useState<"rooms" | "chats" | "me">("rooms");
-  const [roomFilter, setRoomFilter] = useState<"popular" | "egypt" | "syria">("syria");
+  const [roomFilter, setRoomFilter] = useState<"popular" | "egypt" | "syria" | "mine" | "featured" | "locked">("popular");
+  const [showSearch, setShowSearch] = useState(false);
+  const [roomSearch, setRoomSearch] = useState("");
   const copy = messages[locale];
   const ar = locale === "ar";
+  const filteredRooms = rooms.filter((room) => {
+    const q = roomSearch.trim().toLocaleLowerCase();
+    if (q && !room.name.toLocaleLowerCase().includes(q) && !(room.description ?? "").toLocaleLowerCase().includes(q)) return false;
+    if (roomFilter === "mine" && room.owner_id !== session?.user?.id) return false;
+    if (roomFilter === "featured" && !room.is_featured) return false;
+    if (roomFilter === "locked" && !room.password_enabled) return false;
+    if (roomFilter === "egypt" && !/egypt|مصر/i.test(room.owner?.country ?? "")) return false;
+    if (roomFilter === "syria" && !/syria|سوريا/i.test(room.owner?.country ?? "")) return false;
+    return true;
+  });
 
   useEffect(() => {
     const client = supabase;
@@ -73,7 +85,7 @@ export default function HomeScreen() {
     if (!client || !session) { setRooms([]); setLoading(false); return; }
     setLoading(true); setError("");
     const { data, error: queryError } = await client.from("rooms")
-      .select("id,owner_id,name,description,cover_url,status,is_featured,max_seats,password_enabled,created_at,owner:profiles!rooms_owner_id_fkey(display_name,avatar_url)")
+      .select("id,owner_id,name,description,cover_url,status,is_featured,max_seats,password_enabled,created_at,owner:profiles!rooms_owner_id_fkey(display_name,avatar_url,country)")
       .neq("status", "closed").order("is_featured", { ascending: false }).order("created_at", { ascending: false }).limit(30);
     if (queryError) setError(queryError.message);
     else setRooms((data ?? []).map((room) => ({ ...room, owner: Array.isArray(room.owner) ? (room.owner[0] ?? null) : (room.owner ?? null) })) as Room[]);
@@ -194,13 +206,13 @@ export default function HomeScreen() {
     {tab === "rooms" ? <View style={s.header}>
       <View style={s.quickIcons}>
         <Pressable accessibilityRole="button" onPress={() => setTab("rooms")} style={s.quickButton}><Text style={s.quickIcon}>⌂</Text></Pressable>
-        <Pressable accessibilityRole="button" onPress={() => void loadRooms()} style={s.quickButton}><Text style={s.quickIcon}>⌕</Text></Pressable>
+        <Pressable accessibilityRole="button" onPress={() => setShowSearch(v => !v)} style={s.quickButton}><Text style={s.quickIcon}>⌕</Text></Pressable>
         <Pressable accessibilityRole="button" onPress={() => setShowCreateRoom(true)} style={s.quickButton}><Text style={s.quickIcon}>🎉</Text></Pressable>
       </View>
       <View style={s.topLinkGroup}>
-        <Pressable onPress={() => { setTab("rooms"); void loadRooms(); }}><Text style={s.topLinkActive}>{ar ? "حفلة" : "Party"}</Text></Pressable>
-        <Pressable onPress={() => { setTab("rooms"); void loadRooms(); }}><Text style={s.topLink}>{ar ? "ملكي" : "Mine"}</Text></Pressable>
-        <Pressable onPress={() => { setTab("rooms"); void loadRooms(); }}><Text style={s.topLink}>{ar ? "الفعاليات" : "Events"}</Text></Pressable>
+        <Pressable onPress={() => { setTab("rooms"); setRoomFilter("popular"); }}><Text style={roomFilter==="popular" ? s.topLinkActive : s.topLink}>{ar ? "حفلة" : "Party"}</Text></Pressable>
+        <Pressable onPress={() => { setTab("rooms"); setRoomFilter("mine"); }}><Text style={roomFilter==="mine" ? s.topLinkActive : s.topLink}>{ar ? "ملكي" : "Mine"}</Text></Pressable>
+        <Pressable onPress={() => { setTab("rooms"); setRoomFilter("featured"); }}><Text style={roomFilter==="featured" ? s.topLinkActive : s.topLink}>{ar ? "الفعاليات" : "Events"}</Text></Pressable>
       </View>
     </View> : null}
     <ScrollView style={s.contentScroll} contentContainerStyle={s.contentContainer} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
@@ -214,17 +226,18 @@ export default function HomeScreen() {
           <View style={s.bannerGlow}><View style={s.bannerArt}><Text style={s.bannerGift}>🎁</Text><Text style={s.bannerDiamond}>◆</Text><Text style={s.bannerPerson}>👩🏻</Text><Text style={s.bannerPerson2}>🧑🏻</Text></View><Text style={s.bannerKicker}>JEHOO ✦ LIVE</Text><Text style={s.bannerTitle}>{ar ? "مكافآت الشحن" : "Recharge Rewards"}</Text><Text style={s.bannerText}>{ar ? "ادخل غرفتك المفضلة وتعرّف على أصدقاء جدد" : "Join your favorite rooms and meet new friends"}</Text><View style={s.bannerPill}><Text style={s.bannerPillText}>{ar ? "اكتشف الآن  ←" : "Explore now  →"}</Text></View></View>
         </Pressable>
         <View style={s.categoryRow}>{[
-          { label: ar ? "قربي" : "Nearby", color: "#3997E8", count: 3, icon: "👑" },
-          { label: "CP", color: "#A44CF0", count: 2, icon: "💎" },
-          { label: ar ? "الثروة" : "Rich", color: "#F3B54A", count: 3, icon: "🏆" },
-        ].map(item => <Pressable key={item.label} style={[s.categoryCard,{backgroundColor:item.color+"22",borderColor:item.color}]} onPress={() => { setTab("rooms"); void loadRooms(); }}>
-          <View style={s.categoryPeople}>{Array.from({length:item.count}).map((_,i)=><View key={i} style={s.categoryAvatar}><Text style={s.categoryCrown}>{item.icon}</Text><Text style={s.categoryPerson}>👤</Text></View>)}</View>
-          <Text style={s.categoryLabel}>{item.label}</Text>
+          { label: ar ? "المميزة" : "Featured", color: "#3997E8", icon: "✦", filter: "featured" as const },
+          { label: ar ? "روماتي" : "My rooms", color: "#A44CF0", icon: "♙", filter: "mine" as const },
+          { label: ar ? "محمية بكلمة مرور" : "Locked", color: "#D99A32", icon: "🔒", filter: "locked" as const },
+        ].map(item => <Pressable key={item.filter} accessibilityRole="button" accessibilityLabel={item.label} style={[s.categoryCard,{backgroundColor:item.color+"16",borderColor:roomFilter===item.filter?item.color:"#E2E6E3"}]} onPress={() => setRoomFilter(item.filter)}>
+          <Text style={[s.categoryLabel,{color:item.color,fontSize:25}]}>{item.icon}</Text>
+          <Text style={[s.categoryLabel,{color:"#26352F",fontSize:13,textAlign:"center"}]}>{item.label}</Text>
         </Pressable>)}</View>
+        {showSearch ? <View style={{marginHorizontal:20,marginBottom:12}}><TextInput value={roomSearch} onChangeText={setRoomSearch} autoFocus placeholder={ar ? "ابحث عن اسم الروم أو وصفها..." : "Search room name or description..."} placeholderTextColor="#728295" style={s.field} returnKeyType="search" /></View> : null}
         <View style={s.filterRow}>
-          <Pressable onPress={() => { setRoomFilter("popular"); void loadRooms(); }} style={[s.filterPill,roomFilter==="popular"&&s.filterPillActive]}><Text style={[s.filterText,s.filterTextActive]}>🔥 {ar ? "شائع" : "Popular"}</Text></Pressable>
-          <Pressable onPress={() => { setRoomFilter("egypt"); void loadRooms(); }} style={[s.filterPill,roomFilter==="egypt"&&s.filterPillActive]}><Text style={[s.filterText,roomFilter==="egypt"&&s.filterTextActive]}>🇪🇬 مصر</Text></Pressable>
-          <Pressable onPress={() => { setRoomFilter("syria"); void loadRooms(); }} style={[s.filterPill,roomFilter==="syria"&&s.filterPillActive]}><Text style={[s.filterText,roomFilter==="syria"&&s.filterTextCountryActive]}>🇸🇾 سوريا</Text></Pressable>
+          <Pressable onPress={() => setRoomFilter("popular")} style={[s.filterPill,roomFilter==="popular"&&s.filterPillActive]}><Text style={[s.filterText,s.filterTextActive]}>🔥 {ar ? "شائع" : "Popular"}</Text></Pressable>
+          <Pressable onPress={() => setRoomFilter("egypt")} style={[s.filterPill,roomFilter==="egypt"&&s.filterPillActive]}><Text style={[s.filterText,roomFilter==="egypt"&&s.filterTextActive]}>🇪🇬 مصر</Text></Pressable>
+          <Pressable onPress={() => setRoomFilter("syria")} style={[s.filterPill,roomFilter==="syria"&&s.filterPillActive]}><Text style={[s.filterText,roomFilter==="syria"&&s.filterTextCountryActive]}>🇸🇾 سوريا</Text></Pressable>
           <Pressable onPress={() => setRoomFilter(roomFilter==="popular"?"egypt":roomFilter==="egypt"?"syria":"popular")} style={s.dropdown}><Text style={s.filterText}>⌄</Text></Pressable>
         </View>
         <View style={s.sectionHeader}><View><Text style={s.sectionTitle}>{ar ? "الرومات النشطة" : "Live rooms"}</Text><Text style={s.subtitle}>{ar ? "اختر مساحة تناسبك" : "Find your space"}</Text></View><Pressable onPress={() => void loadRooms()} style={s.secondary}><Text style={s.secondaryText}>{ar ? "تحديث ↻" : "Refresh ↻"}</Text></Pressable></View>
@@ -237,7 +250,7 @@ export default function HomeScreen() {
           <Text style={s.formLabel}>{ar ? "الوصف (اختياري)" : "Description (optional)"}</Text><TextInput value={roomDescription} onChangeText={setRoomDescription} placeholder={ar ? "عن ماذا سنتحدث؟" : "What is this room about?"} placeholderTextColor="#728295" maxLength={500} multiline style={[s.field,s.descriptionField]} />
           <Pressable disabled={createBusy} onPress={() => void createRoom()} style={s.primary}><Text style={s.primaryText}>{createBusy ? (ar ? "جاري الإنشاء..." : "Creating...") : (ar ? "إنشاء والدخول للغرفة" : "Create and enter room")}</Text></Pressable>
         </View> : null}
-        {loading ? <ActivityIndicator style={{marginTop:32}} color="#31D6B0"/> : error ? <View style={s.empty}><Text style={s.error}>{error}</Text></View> : rooms.length === 0 ? <View style={s.empty}><Text style={s.emptyTitle}>{ar ? "لا توجد غرف بعد" : "No rooms yet"}</Text></View> : <View style={s.roomGrid}>{rooms.map((item,index) => <Pressable key={item.id} onPress={() => router.push({pathname:"/room/[id]",params:{id:item.id}})} style={[s.room,{width:cardWidth}]}><View style={s.roomCover}>{(item as any).cover_url?<Image source={{uri:(item as any).cover_url}} style={s.roomCoverImage}/>:<Text style={s.roomEmoji}>{item.is_featured?"👑":"🎙️"}</Text>}<View style={s.roomCoverShade}/><View style={s.roomCoverTop}><Text style={s.roomCoverHint}>{(item as any).password_enabled?"🔒 ":""}{(item as any).max_seats||10} مقعد</Text><View style={s.liveBadge}><Text style={s.liveBadgeText}>{item.status==="active"?"مباشر":"متاح"}</Text></View></View></View><View style={s.roomInfo}><Text style={s.roomName} numberOfLines={1}>{item.name}</Text><Text style={s.subtitle} numberOfLines={2}>{item.description || (ar ? "غرفة صوتية على جيهو" : "JEHOO voice room")}</Text><View style={s.roomBottom}><Text style={s.roomMeta}>● {item.max_seats} {ar?"مقاعد":"seats"}{item.password_enabled?"  🔒":""}</Text><Text style={s.chevron}>‹</Text></View></View></Pressable>)}</View>}
+        {loading ? <ActivityIndicator style={{marginTop:32}} color="#31D6B0"/> : error ? <View style={s.empty}><Text style={s.error}>{error}</Text></View> : filteredRooms.length === 0 ? <View style={s.empty}><Text style={s.emptyTitle}>{roomSearch.trim() ? (ar ? "ما لقينا رومات تطابق البحث" : "No rooms match your search") : roomFilter==="mine" ? (ar ? "ما عندك رومات لسه" : "You have no rooms yet") : (ar ? "ما في رومات بهالتصنيف" : "No rooms in this category")}</Text></View> : <View style={s.roomGrid}>{filteredRooms.map((item,index) => <Pressable key={item.id} onPress={() => router.push({pathname:"/room/[id]",params:{id:item.id}})} style={[s.room,{width:cardWidth}]}><View style={s.roomCover}>{(item as any).cover_url?<Image source={{uri:(item as any).cover_url}} style={s.roomCoverImage}/>:<Text style={s.roomEmoji}>{item.is_featured?"👑":"🎙️"}</Text>}<View style={s.roomCoverShade}/><View style={s.roomCoverTop}><Text style={s.roomCoverHint}>{(item as any).password_enabled?"🔒 ":""}{(item as any).max_seats||10} مقعد</Text><View style={s.liveBadge}><Text style={s.liveBadgeText}>{item.status==="active"?"مباشر":"متاح"}</Text></View></View></View><View style={s.roomInfo}><Text style={s.roomName} numberOfLines={1}>{item.name}</Text><Text style={s.subtitle} numberOfLines={2}>{item.description || (ar ? "غرفة صوتية على جيهو" : "JEHOO voice room")}</Text><View style={s.roomBottom}><Text style={s.roomMeta}>● {item.max_seats} {ar?"مقاعد":"seats"}{item.password_enabled?"  🔒":""}</Text><Text style={s.chevron}>‹</Text></View></View></Pressable>)}</View>}
       </View> : tab === "chats" ? <View style={s.chatPage}>
         <Text style={s.pageTitle}>{ar ? "الدردشات" : "Chats"}</Text>
         <Text style={s.subtitle}>{ar ? "محادثاتك فقط، بدون إضافات الشاشة الرئيسية." : "Your chats only."}</Text>
@@ -280,7 +293,7 @@ const s = StyleSheet.create({
   bannerPill:{alignSelf:"flex-start",marginTop:13,paddingHorizontal:15,paddingVertical:7,borderRadius:18,backgroundColor:"#20C69A"},
   bannerPillText:{color:"#07382D",fontSize:12,fontWeight:"900"},
   categoryRow:{flexDirection:"row",gap:11,marginHorizontal:20,marginBottom:14},
-  categoryCard:{flex:1,height:170,borderRadius:22,alignItems:"center",justifyContent:"center",overflow:"hidden",borderWidth:1},
+  categoryCard:{flex:1,height:104,borderRadius:18,alignItems:"center",justifyContent:"center",overflow:"hidden",borderWidth:1},
   categoryEmoji:{fontSize:29},
   categoryLabel:{fontSize:21,fontWeight:"900",color:"#FFFFFF",marginTop:9},
   categoryPeople:{flexDirection:"row",alignItems:"center",justifyContent:"center",gap:5},
@@ -293,14 +306,14 @@ const s = StyleSheet.create({
   filterTextActive:{color:"#FFFFFF"},filterTextCountryActive:{color:"#1D6954"},
   dropdown:{height:52,width:52,borderRadius:26,backgroundColor:"#FFFFFF",borderWidth:1,borderColor:"#E1E6E3",alignItems:"center",justifyContent:"center"},
   roomGrid:{flexDirection:"row",flexWrap:"wrap",columnGap:21,rowGap:17,marginHorizontal:20},
-  room:{width:"48%",minWidth:0,height:405,overflow:"hidden",borderRadius:25,borderWidth:1,borderColor:"#E2E6E3",backgroundColor:"#FFFFFF",shadowColor:"#17251F",shadowOpacity:0.08,shadowRadius:10,elevation:2},
-  roomCover:{height:"74%",width:"100%",alignItems:"center",justifyContent:"center",position:"relative",overflow:"hidden",backgroundColor:"#D9E8E2"},roomCoverShade:{position:"absolute",left:0,right:0,top:0,bottom:0,backgroundColor:"rgba(0,0,0,0.08)"},roomCoverTop:{position:"absolute",left:12,right:12,top:12,flexDirection:"row",alignItems:"center",justifyContent:"space-between"},roomCoverImage:{width:"100%",height:"100%"},roomArt:{width:"100%",height:"100%",alignItems:"center",justifyContent:"center"},ownerMini:{position:"absolute",left:10,bottom:10,right:10,flexDirection:"row",alignItems:"center",gap:6,backgroundColor:"rgba(0,0,0,0.35)",borderRadius:14,paddingHorizontal:7,paddingVertical:5},ownerAvatar:{width:24,height:24,borderRadius:12},ownerAvatarFallback:{width:24,height:24,borderRadius:12,backgroundColor:"#31D6B0",alignItems:"center",justifyContent:"center"},ownerAvatarText:{fontSize:11,fontWeight:"900",color:"#06251E"},ownerName:{flex:1,color:"#FFFFFF",fontSize:10,fontWeight:"800"},
+  room:{width:"48%",minWidth:0,height:280,overflow:"hidden",borderRadius:20,borderWidth:1,borderColor:"#E2E6E3",backgroundColor:"#FFFFFF",shadowColor:"#17251F",shadowOpacity:0.08,shadowRadius:10,elevation:2},
+  roomCover:{height:"64%",width:"100%",alignItems:"center",justifyContent:"center",position:"relative",overflow:"hidden",backgroundColor:"#D9E8E2"},roomCoverShade:{position:"absolute",left:0,right:0,top:0,bottom:0,backgroundColor:"rgba(0,0,0,0.08)"},roomCoverTop:{position:"absolute",left:12,right:12,top:12,flexDirection:"row",alignItems:"center",justifyContent:"space-between"},roomCoverImage:{width:"100%",height:"100%"},roomArt:{width:"100%",height:"100%",alignItems:"center",justifyContent:"center"},ownerMini:{position:"absolute",left:10,bottom:10,right:10,flexDirection:"row",alignItems:"center",gap:6,backgroundColor:"rgba(0,0,0,0.35)",borderRadius:14,paddingHorizontal:7,paddingVertical:5},ownerAvatar:{width:24,height:24,borderRadius:12},ownerAvatarFallback:{width:24,height:24,borderRadius:12,backgroundColor:"#31D6B0",alignItems:"center",justifyContent:"center"},ownerAvatarText:{fontSize:11,fontWeight:"900",color:"#06251E"},ownerName:{flex:1,color:"#FFFFFF",fontSize:10,fontWeight:"800"},
   roomEmoji:{fontSize:42},
   roomCoverHint:{fontSize:11,color:"#FFFFFF",fontWeight:"900",marginTop:7},
   liveBadge:{position:"absolute",top:13,right:13,bottom:undefined,left:undefined,backgroundColor:"#FFFFFFDD",borderRadius:10,paddingHorizontal:8,paddingVertical:4},
   liveBadgeText:{fontSize:9,fontWeight:"900",color:"#173B32"},
-  roomInfo:{position:"absolute",left:0,right:0,bottom:0,paddingHorizontal:15,paddingTop:45,paddingBottom:14,backgroundColor:"rgba(0,0,0,0.42)"},
-  roomName:{fontSize:16,fontWeight:"900",color:"#FFFFFF",marginBottom:5,textAlign:"right"},
+  roomInfo:{position:"absolute",left:0,right:0,bottom:0,paddingHorizontal:11,paddingTop:30,paddingBottom:10,backgroundColor:"rgba(0,0,0,0.42)"},
+  roomName:{fontSize:14,fontWeight:"900",color:"#FFFFFF",marginBottom:5,textAlign:"right"},
   subtitle:{color:"#EAF0ED",fontSize:11,marginTop:3},
   roomBottom:{flexDirection:"row-reverse",alignItems:"center",justifyContent:"space-between",marginTop:5},
   roomMeta:{fontSize:10,color:"#DDFBF0",fontWeight:"700"},
