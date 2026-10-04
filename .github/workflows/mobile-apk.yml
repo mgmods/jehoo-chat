@@ -40,11 +40,13 @@ jobs:
         with:
           node-version: 22
       - name: Install dependencies
-        run: npm install
+        run: npm install --no-audit --no-fund
+      - name: Validate Expo config
+        run: npx expo config --type public
       - name: Type check
         run: npx tsc --noEmit
       - name: Generate Android project
-        run: npx expo prebuild --platform android --non-interactive
+        run: npx expo prebuild --platform android --non-interactive --clean
       - name: Build standalone release APK
         run: cd android && chmod +x gradlew && ./gradlew assembleRelease
       - name: Upload APK
