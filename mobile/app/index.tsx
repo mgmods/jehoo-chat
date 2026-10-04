@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View, ScrollView, useWindowDimensions } from "react-native";
+import { ActivityIndicator, Alert, Image, Pressable, StyleSheet, Text, TextInput, View, ScrollView, useWindowDimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
@@ -10,7 +10,7 @@ import ProfileOnboarding from "@/components/ProfileOnboarding";
 
 WebBrowser.maybeCompleteAuthSession();
 
-type Room = { id: string; name: string; description: string; status: "active" | "locked" | "closed"; is_featured: boolean; created_at: string };
+type Room = { id: string; owner_id:string; name: string; description: string; cover_url:string|null; status: "active" | "locked" | "closed"; is_featured: boolean; max_seats:number; password_enabled:boolean; created_at: string; owner?:{display_name:string;avatar_url:string}|null };
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -73,7 +73,7 @@ export default function HomeScreen() {
     if (!client || !session) { setRooms([]); setLoading(false); return; }
     setLoading(true); setError("");
     const { data, error: queryError } = await client.from("rooms")
-      .select("id,name,description,status,is_featured,created_at")
+      .select("id,owner_id,name,description,cover_url,status,is_featured,max_seats,password_enabled,created_at,owner:profiles!rooms_owner_id_fkey(display_name,avatar_url)")
       .neq("status", "closed").order("is_featured", { ascending: false }).order("created_at", { ascending: false }).limit(30);
     if (queryError) setError(queryError.message);
     else setRooms((data ?? []) as Room[]);
@@ -81,6 +81,7 @@ export default function HomeScreen() {
   }, [session]);
 
   useEffect(() => { void loadRooms(); }, [loadRooms]);
+  useEffect(() => { const client=supabase; if(!client||!session)return; const channel=client.channel("home-rooms").on("postgres_changes",{event:"*",schema:"public",table:"rooms"},()=>void loadRooms()).subscribe(); return()=>{void client.removeChannel(channel)}; },[session,loadRooms]);
 
   async function signIn() {
     const client = supabase;
@@ -236,7 +237,7 @@ export default function HomeScreen() {
           <Text style={s.formLabel}>{ar ? "الوصف (اختياري)" : "Description (optional)"}</Text><TextInput value={roomDescription} onChangeText={setRoomDescription} placeholder={ar ? "عن ماذا سنتحدث؟" : "What is this room about?"} placeholderTextColor="#728295" maxLength={500} multiline style={[s.field,s.descriptionField]} />
           <Pressable disabled={createBusy} onPress={() => void createRoom()} style={s.primary}><Text style={s.primaryText}>{createBusy ? (ar ? "جاري الإنشاء..." : "Creating...") : (ar ? "إنشاء والدخول للغرفة" : "Create and enter room")}</Text></Pressable>
         </View> : null}
-        {loading ? <ActivityIndicator style={{marginTop:32}} color="#31D6B0"/> : error ? <View style={s.empty}><Text style={s.error}>{error}</Text></View> : rooms.length === 0 ? <View style={s.empty}><Text style={s.emptyTitle}>{ar ? "لا توجد غرف بعد" : "No rooms yet"}</Text></View> : <View style={s.roomGrid}>{rooms.map(item => <Pressable key={item.id} onPress={() => router.push({pathname:"/room/[id]",params:{id:item.id}})} style={s.room}><View style={[s.roomCover,{backgroundColor:item.is_featured?"#0C5848":"#153A35"}]}><Text style={s.roomEmoji}>{item.is_featured?"👑":"🎙️"}</Text><Text style={s.roomCoverHint}>{item.is_featured?(ar?"مميز":"FEATURED"):(ar?"غرفة صوتية":"VOICE ROOM")}</Text><View style={s.liveBadge}><Text style={s.liveBadgeText}>{item.status==="active"?(ar?"● مباشر":"● LIVE"):(ar?"مفتوحة":"OPEN")}</Text></View></View><View style={s.roomInfo}><Text style={s.roomName} numberOfLines={1}>{item.name}</Text><Text style={s.subtitle} numberOfLines={2}>{item.description || (ar ? "غرفة صوتية على جيهو" : "JEHOO voice room")}</Text><View style={s.roomBottom}><Text style={s.roomMeta}>● {ar?"انضم الآن":"Join now"}</Text><Text style={s.chevron}>‹</Text></View></View></Pressable>)}</View>}
+        {loading ? <ActivityIndicator style={{marginTop:32}} color="#31D6B0"/> : error ? <View style={s.empty}><Text style={s.error}>{error}</Text></View> : rooms.length === 0 ? <View style={s.empty}><Text style={s.emptyTitle}>{ar ? "لا توجد غرف بعد" : "No rooms yet"}</Text></View> : <View style={s.roomGrid}>{rooms.map((item,index) => <Pressable key={item.id} onPress={() => router.push({pathname:"/room/[id]",params:{id:item.id}})} style={[s.room,{width:cardWidth}]}><View style={s.roomCover}>{item.cover_url?<Image source={{uri:item.cover_url}} style={s.roomCoverImage} resizeMode="cover"/>:<View style={[s.roomArt,{backgroundColor:index%3===0?"#0C5848":index%3===1?"#5A2B78":"#9A6420"}]}><Text style={s.roomEmoji}>{item.is_featured?"👑":"🎙️"}</Text><Text style={s.roomCoverHint}>{item.is_featured?(ar?"مميز":"FEATURED"):(ar?"غرفة صوتية":"VOICE ROOM")}</Text></View>}<View style={s.liveBadge}><Text style={s.liveBadgeText}>{item.status==="active"?(ar?"● مباشر":"● LIVE"):(ar?"مفتوحة":"OPEN")}</Text></View><View style={s.ownerMini}>{item.owner?.avatar_url?<Image source={{uri:item.owner.avatar_url}} style={s.ownerAvatar}/>:<View style={s.ownerAvatarFallback}><Text style={s.ownerAvatarText}>{(item.owner?.display_name||"ج").slice(0,1)}</Text></View>}<Text style={s.ownerName} numberOfLines={1}>{item.owner?.display_name||"مالك الغرفة"}</Text></View></View><View style={s.roomInfo}><Text style={s.roomName} numberOfLines={1}>{item.name}</Text><Text style={s.subtitle} numberOfLines={2}>{item.description || (ar ? "غرفة صوتية على جيهو" : "JEHOO voice room")}</Text><View style={s.roomBottom}><Text style={s.roomMeta}>● {item.max_seats} {ar?"مقاعد":"seats"}{item.password_enabled?"  🔒":""}</Text><Text style={s.chevron}>‹</Text></View></View></Pressable>)}</View>}
       </View> : tab === "chats" ? <View style={s.chatPage}>
         <Text style={s.pageTitle}>{ar ? "الدردشات" : "Chats"}</Text>
         <Text style={s.subtitle}>{ar ? "محادثاتك فقط، بدون إضافات الشاشة الرئيسية." : "Your chats only."}</Text>
@@ -293,7 +294,7 @@ const s = StyleSheet.create({
   dropdown:{height:52,width:52,borderRadius:26,backgroundColor:"#FFFFFF",borderWidth:1,borderColor:"#E1E6E3",alignItems:"center",justifyContent:"center"},
   roomGrid:{flexDirection:"row",flexWrap:"wrap",columnGap:21,rowGap:17,marginHorizontal:20},
   room:{width:"48%",minWidth:0,height:405,overflow:"hidden",borderRadius:25,borderWidth:1,borderColor:"#E2E6E3",backgroundColor:"#FFFFFF",shadowColor:"#17251F",shadowOpacity:0.08,shadowRadius:10,elevation:2},
-  roomCover:{height:"74%",width:"100%",alignItems:"center",justifyContent:"center",position:"relative",backgroundColor:"#D9E8E2"},
+  roomCover:{height:"74%",width:"100%",alignItems:"center",justifyContent:"center",position:"relative",overflow:"hidden",backgroundColor:"#D9E8E2"},roomCoverImage:{width:"100%",height:"100%"},roomArt:{width:"100%",height:"100%",alignItems:"center",justifyContent:"center"},ownerMini:{position:"absolute",left:10,bottom:10,right:10,flexDirection:"row",alignItems:"center",gap:6,backgroundColor:"rgba(0,0,0,0.35)",borderRadius:14,paddingHorizontal:7,paddingVertical:5},ownerAvatar:{width:24,height:24,borderRadius:12},ownerAvatarFallback:{width:24,height:24,borderRadius:12,backgroundColor:"#31D6B0",alignItems:"center",justifyContent:"center"},ownerAvatarText:{fontSize:11,fontWeight:"900",color:"#06251E"},ownerName:{flex:1,color:"#FFFFFF",fontSize:10,fontWeight:"800"},
   roomEmoji:{fontSize:42},
   roomCoverHint:{fontSize:11,color:"#FFFFFF",fontWeight:"900",marginTop:7},
   liveBadge:{position:"absolute",top:13,right:13,bottom:undefined,left:undefined,backgroundColor:"#FFFFFFDD",borderRadius:10,paddingHorizontal:8,paddingVertical:4},
