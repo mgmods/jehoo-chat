@@ -1,6 +1,6 @@
 import { Alert, ActivityIndicator, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { AudioSession, LiveKitRoom, registerGlobals } from "@livekit/react-native";
 import { Room } from "livekit-client";
@@ -19,7 +19,7 @@ export default function VoiceRoomRoute() {
   const [room,setRoom]=useState<RoomRow|null>(null), [seats,setSeats]=useState<SeatRow[]>([]), [profiles,setProfiles]=useState<Record<string,ProfileRow>>({});
   const [ownerProfile,setOwnerProfile]=useState<ProfileRow|null>(null), [followed,setFollowed]=useState(false), [currentUserId,setCurrentUserId]=useState<string|null>(null);
   const [loading,setLoading]=useState(true), [busy,setBusy]=useState(false), [live,setLive]=useState<{url:string;token:string}|null>(null), [error,setError]=useState("");
-  const [liveRoom,setLiveRoom]=useState<Room|null>(null);
+  const [liveRoom,setLiveRoom]=useState<Room|null>(null); const liveRoomRef=useRef<Room|null>(null);
   const [passwordModal,setPasswordModal]=useState(false), [joinPassword,setJoinPassword]=useState("");
   const [settingsName,setSettingsName]=useState(""), [settingsDescription,setSettingsDescription]=useState(""), [settingsCover,setSettingsCover]=useState(""), [settingsSeats,setSettingsSeats]=useState("10"), [settingsPasswordEnabled,setSettingsPasswordEnabled]=useState(false), [settingsPassword,setSettingsPassword]=useState(""), [settingsWelcome,setSettingsWelcome]=useState(""), [settingsBusy,setSettingsBusy]=useState(false);
   const [isHost,setIsHost]=useState(false), [canModerate,setCanModerate]=useState(false), [micEnabled,setMicEnabled]=useState(true);
@@ -101,7 +101,7 @@ export default function VoiceRoomRoute() {
 
   useEffect(()=>{const client=supabase;if(!client||!roomId)return;const channel=client.channel("room-seats-"+roomId).on("postgres_changes",{event:"*",schema:"public",table:"room_seats",filter:"room_id=eq."+roomId},()=>void loadRoom()).on("postgres_changes",{event:"*",schema:"public",table:"room_requests",filter:"room_id=eq."+roomId},()=>void loadRoom()).on("postgres_changes",{event:"*",schema:"public",table:"room_members",filter:"room_id=eq."+roomId},()=>void loadRoom()).subscribe();return()=>{void client.removeChannel(channel)}},[roomId,loadRoom]);
 
-  useEffect(()=>()=>{const roomInstance=liveRoom;if(roomInstance){void roomInstance.disconnect();}void AudioSession.stopAudioSession().catch(()=>undefined);},[liveRoom]);
+  useEffect(()=>()=>{const roomInstance=liveRoomRef.current;if(roomInstance){void roomInstance.disconnect();}void AudioSession.stopAudioSession().catch(()=>undefined);},[]);
 
   async function joinVoice(password?:string){
     const client=supabase;
@@ -109,8 +109,8 @@ export default function VoiceRoomRoute() {
     if(room.status==="closed"){setError("الغرفة مغلقة ولا يمكن الانضمام إليها.");return;}
     if(room.status==="locked"&&!isHost){setError("الغرفة مقفلة حالياً.");return;}
     setBusy(true);setError("");
-    try{const {error:joinError}=await client.rpc("jehoo_join_room",{p_room_id:room.id,p_password:password??null});if(joinError){ if(String(joinError.message||"").includes("ROOM_PASSWORD_REQUIRED")){setPasswordModal(true);return;} throw joinError; }const {data,error:tokenError}=await client.functions.invoke("livekit-token",{body:{roomName:room.livekit_room_name}});if(tokenError)throw tokenError;if(!data?.serverUrl||!data?.participantToken)throw new Error("Voice token response is incomplete.");registerGlobals();await AudioSession.startAudioSession();const connectedRoom=new Room();await connectedRoom.connect(data.serverUrl,data.participantToken,{});const canPublish=Boolean(data.canPublish);if(canPublish){await connectedRoom.localParticipant.setMicrophoneEnabled(true);}else{await connectedRoom.localParticipant.setMicrophoneEnabled(false);}setMicEnabled(canPublish);setLiveRoom(connectedRoom);setLive({url:data.serverUrl,token:data.participantToken})}catch(e){if(client&&room)await client.rpc("jehoo_leave_room",{p_room_id:room.id});setError(e instanceof Error?e.message:"Unable to connect to the voice room.");await AudioSession.stopAudioSession().catch(()=>undefined)}finally{setBusy(false)}}
-  async function leaveVoice(){const client=supabase;try{await liveRoom?.disconnect()}catch{}setLiveRoom(null);setLive(null);await AudioSession.stopAudioSession().catch(()=>undefined);if(client&&room){const {error:leaveError}=await client.rpc("jehoo_leave_room",{p_room_id:room.id});if(leaveError)setError(leaveError.message);else{setMicRequestSent(false);void loadRoom()}}}
+    try{const {error:joinError}=await client.rpc("jehoo_join_room",{p_room_id:room.id,p_password:password??null});if(joinError){ if(String(joinError.message||"").includes("ROOM_PASSWORD_REQUIRED")){setPasswordModal(true);return;} throw joinError; }const {data,error:tokenError}=await client.functions.invoke("livekit-token",{body:{roomName:room.livekit_room_name}});if(tokenError)throw tokenError;if(!data?.serverUrl||!data?.participantToken)throw new Error("Voice token response is incomplete.");registerGlobals();await AudioSession.startAudioSession();const connectedRoom=new Room();await connectedRoom.connect(data.serverUrl,data.participantToken,{});const canPublish=Boolean(data.canPublish);if(canPublish){await connectedRoom.localParticipant.setMicrophoneEnabled(true);}else{await connectedRoom.localParticipant.setMicrophoneEnabled(false);}setMicEnabled(canPublish);liveRoomRef.current=connectedRoom;setLiveRoom(connectedRoom);setLive({url:data.serverUrl,token:data.participantToken})}catch(e){if(client&&room)await client.rpc("jehoo_leave_room",{p_room_id:room.id});setError(e instanceof Error?e.message:"Unable to connect to the voice room.");await AudioSession.stopAudioSession().catch(()=>undefined)}finally{setBusy(false)}}
+  async function leaveVoice(){const client=supabase;try{await liveRoomRef.current?.disconnect()}catch{}liveRoomRef.current=null;setLiveRoom(null);setLive(null);await AudioSession.stopAudioSession().catch(()=>undefined);if(client&&room){const {error:leaveError}=await client.rpc("jehoo_leave_room",{p_room_id:room.id});if(leaveError)setError(leaveError.message);else{setMicRequestSent(false);void loadRoom()}}}
   async function handleMicrophoneRequest(requestId:string,accept:boolean){const client=supabase;if(!client)return;setHandlingRequest(requestId);setError("");try{const {data:decision,error:handleError}=await client.functions.invoke("room-microphone",{body:{requestId,accept}});if(handleError)throw handleError;if(decision?.error)throw new Error(String(decision.error));await loadRoom()}catch(e){setError(e instanceof Error?e.message:"تعذر معالجة طلب المايك")}finally{setHandlingRequest(null)}}
   async function requestMicrophone(){const client=supabase;if(!client||!room)return;setMicRequestBusy(true);setError("");try{const {error:requestError}=await client.rpc("jehoo_request_microphone",{p_room_id:room.id});if(requestError)throw requestError;setMicRequestSent(true)}catch(e){setError(e instanceof Error?e.message:"تعذر إرسال طلب المايك")}finally{setMicRequestBusy(false)}}
 
