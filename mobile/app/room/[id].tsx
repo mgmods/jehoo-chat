@@ -209,14 +209,12 @@ export default function VoiceRoomRoute() {
     if(!client||actingUser||!canModerate)return;
     setActingUser(targetId);setError("");
     try{
-      let result:{error: any};
-      if(action==="lower") result=await client.rpc("jehoo_lower_from_seat",{p_room_id:roomId,p_target_user_id:targetId});
-      else if(action==="kick") result=await client.rpc("jehoo_kick_from_room",{p_room_id:roomId,p_target_user_id:targetId});
-      else if(action==="mute") result=await client.rpc("jehoo_mute_room_member",{p_room_id:roomId,p_target_user_id:targetId,p_muted:true});
-      else if(action==="ban") result=await client.rpc("jehoo_ban_from_room",{p_room_id:roomId,p_target_user_id:targetId,p_reason:"إدارة الغرفة"});
-      else throw new Error("إجراء غير معروف");
-      if(result.error)throw result.error;
+      if(!["lower","kick","mute","ban"].includes(action))throw new Error("إجراء غير معروف");
+      const {data:result,error:actionError}=await client.functions.invoke("room-microphone",{body:{action,roomId,targetUserId:targetId}});
+      if(actionError)throw actionError;
+      if(result?.error)throw new Error(String(result.error));
       await loadRoom();
+      if(result?.livekitAction==="refresh-required")setError("تم حفظ الإجراء، لكن تعذر تحديث الصوت مباشرة. قد يحتاج العضو إلى إعادة الاتصال.");
     }catch(e){setError(e instanceof Error?e.message:"تعذر تنفيذ الإجراء")}
     finally{setActingUser(null)}
   }
