@@ -78,7 +78,9 @@ export default function VoiceRoomRoute() {
         }).subscribe(async(status)=>{
           if(status!=="SUBSCRIBED"||!active)return;
           try{
-            const {data:member,error:memberError}=await client.from("conversation_members").select("joined_at").eq("conversation_id",String(convId)).maybeSingle();
+            const {data:{user}}=await client.auth.getUser();
+            if(!user)return;
+            const {data:member,error:memberError}=await client.from("conversation_members").select("joined_at").eq("conversation_id",String(convId)).eq("user_id",user.id).maybeSingle();
             if(memberError)throw memberError;
             if(!member?.joined_at)return;
             const {data:rows,error:messagesError}=await client.from("messages").select("id,conversation_id,sender_id,message_type,body,created_at").eq("conversation_id",String(convId)).is("deleted_at",null).gte("created_at",member.joined_at).order("created_at",{ascending:true}).limit(100);
