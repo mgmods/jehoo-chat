@@ -144,6 +144,19 @@ export default function VoiceRoomRoute() {
       await AudioSession.stopAudioSession().catch(()=>undefined);
     }finally{setBusy(false)}
   }
+  async function exitRoom(){
+    const client=supabase;
+    if(live||liveRoomRef.current){
+      await leaveVoice();
+      router.replace("/");
+      return;
+    }
+    if(client&&room){
+      const {error:leaveError}=await client.rpc("jehoo_leave_room",{p_room_id:room.id});
+      if(leaveError)setError(leaveError.message);
+    }
+    router.replace("/");
+  }
   async function leaveVoice(){const client=supabase;try{await liveRoomRef.current?.disconnect()}catch{}liveRoomRef.current=null;setLiveRoom(null);setLive(null);await AudioSession.stopAudioSession().catch(()=>undefined);if(client&&room){const {error:leaveError}=await client.rpc("jehoo_leave_room",{p_room_id:room.id});if(leaveError)setError(leaveError.message);else{setMicRequestSent(false);void loadRoom()}}}
   async function handleMicrophoneRequest(requestId:string,accept:boolean){const client=supabase;if(!client)return;setHandlingRequest(requestId);setError("");try{const {data:decision,error:handleError}=await client.functions.invoke("room-microphone",{body:{requestId,accept}});if(handleError)throw handleError;if(decision?.error)throw new Error(String(decision.error));await loadRoom()}catch(e){setError(e instanceof Error?e.message:"تعذر معالجة طلب المايك")}finally{setHandlingRequest(null)}}
   async function requestMicrophone(){const client=supabase;if(!client||!room)return;setMicRequestBusy(true);setError("");try{const {error:requestError}=await client.rpc("jehoo_request_microphone",{p_room_id:room.id});if(requestError)throw requestError;setMicRequestSent(true)}catch(e){setError(e instanceof Error?e.message:"تعذر إرسال طلب المايك")}finally{setMicRequestBusy(false)}}
@@ -252,7 +265,7 @@ function openMemberActions(targetId:string,name:string){
     {loading?<View style={s.center}><ActivityIndicator color="#5FFFE0"/><Text style={s.loadingText}>جاري فتح الغرفة...</Text></View>:error&&!room?<View style={s.center}><Text style={s.error}>{error}</Text><Pressable onPress={()=>void loadRoom()} style={s.retry}><Text style={s.retryText}>إعادة المحاولة</Text></Pressable></View>:<>
       <ScrollView contentContainerStyle={s.roomContent} showsVerticalScrollIndicator={false}>
         <View style={s.roomTop}>
-          <Pressable onPress={()=>Alert.alert("مغادرة الغرفة","هل تريد مغادرة الغرفة؟",[ {text:"إلغاء",style:"cancel"},{text:"مغادرة",style:"destructive",onPress:()=>{if(live)void leaveVoice();else router.replace("/")}} ])} style={s.power}><Text style={s.powerText}>⏻</Text></Pressable>
+          <Pressable onPress={()=>Alert.alert("مغادرة الغرفة","هل تريد مغادرة الغرفة؟",[ {text:"إلغاء",style:"cancel"},{text:"مغادرة",style:"destructive",onPress:()=>void exitRoom()} ])} style={s.power}><Text style={s.powerText}>⏻</Text></Pressable>
           <View style={s.ownerCard}>
             <View style={s.ownerAvatar}>{ownerProfile?.avatar_url?<Image source={{uri:ownerProfile.avatar_url}} style={s.ownerImage}/>:<Text style={s.ownerAvatarText}>👤</Text>}</View>
             <View style={s.ownerText}><Text style={s.ownerName} numberOfLines={1}>{ownerProfile?.display_name||"مالك الغرفة"}</Text><Text style={s.ownerId}>ID: {ownerProfile?.id?.slice(0,8)??"—"}</Text></View>
