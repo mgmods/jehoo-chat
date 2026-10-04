@@ -84,7 +84,7 @@ export default function AdminHome() {
   async function signIn() {
     if (!supabase) return;
     setSigningIn(true); setError("");
-    const redirectTo = process.env.NEXT_PUBLIC_SITE_URL || (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" ? window.location.origin : "https://jehoo-chat-73dx.vercel.app");
+    const redirectTo = "https://jehoo-chat-73dx.vercel.app";
     const {error:authError} = await supabase.auth.signInWithOAuth({provider:"google",options:{redirectTo}});
     if (authError) setError(authError.message);
     setSigningIn(false);
