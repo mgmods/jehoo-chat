@@ -6,6 +6,7 @@ import { makeRedirectUri } from "expo-auth-session";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import { messages, type Locale } from "../../packages/shared/src/index";
+import ProfileOnboarding from "@/components/ProfileOnboarding";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -16,6 +17,8 @@ export default function HomeScreen() {
   const [locale, setLocale] = useState<Locale>("ar");
   const [session, setSession] = useState<Session | null>(null);
   const [rooms, setRooms] = useState<Room[]>([]);
+  const [profile, setProfile] = useState<any>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
@@ -30,15 +33,30 @@ export default function HomeScreen() {
     const client = supabase;
     if (!client) { setLoading(false); setError(copy.configurationRequired); return; }
     let active = true;
-    client.auth.getSession().then(({ data, error: authError }) => {
+    client.auth.getSession().then(async ({ data, error: authError }) => {
       if (!active) return;
       if (authError) setError(authError.message);
       setSession(data.session);
+      if (data.session?.user) {
+        const { data: profileData } = await client.from("profiles").select("id,first_name,nickname,gender,birth_date,country,avatar_url,profile_completed").eq("id", data.session.user.id).maybeSingle();
+        if (active) setProfile(profileData);
+      } else {
+        setProfile(null);
+      }
+      if (active) setProfileLoading(false);
     }).catch((authError: unknown) => {
-      if (active) setError(authError instanceof Error ? authError.message : "Authentication initialization failed.");
+      if (active) { setError(authError instanceof Error ? authError.message : "Authentication initialization failed."); setProfileLoading(false); }
     });
-    const { data: { subscription } } = client.auth.onAuthStateChange((_event, nextSession) => {
-      if (active) setSession(nextSession);
+    const { data: { subscription } } = client.auth.onAuthStateChange(async (_event, nextSession) => {
+      if (!active) return;
+      setSession(nextSession);
+      if (nextSession?.user) {
+        const { data: profileData } = await client.from("profiles").select("id,first_name,nickname,gender,birth_date, country,avatar_url,profile_completed".replace(" ","")).eq("id", nextSession.user.id).maybeSingle();
+        if (active) setProfile(profileData);
+      } else {
+        setProfile(null);
+      }
+      if (active) setProfileLoading(false);
     });
     return () => { active = false; subscription.unsubscribe(); };
   }, [copy.configurationRequired]);
@@ -122,7 +140,7 @@ export default function HomeScreen() {
     } finally { setCreateBusy(false); }
   }
 
-  async function signOut() {
+  async function refreshProfile() {\n    if (!supabase || !session?.user) return;\n    const { data } = await supabase.from("profiles").select("id,first_name,nickname,gender,birth_date,country,avatar_url,profile_completed").eq("id", session.user.id).maybeSingle();\n    setProfile(data);\n  }\n\n  async function signOut() {
     const client = supabase;
     if (!client) return;
     const { error: signOutError } = await client.auth.signOut();
@@ -134,7 +152,7 @@ export default function HomeScreen() {
       <View><Text style={s.brand}>JEHOO <Text style={s.mint}>●</Text> CHAT</Text><Text style={s.subtitle}>{ar ? "مساحتك، صوتك، أصدقاؤك" : "Your space, your voice, your friends"}</Text></View>
       <Pressable style={s.language} onPress={() => setLocale(ar ? "en" : "ar")}><Text style={s.languageText}>{ar ? "English" : "العربية"}</Text></Pressable>
     </View>
-    {!session ? <View style={s.hero}>
+    {profileLoading ? <View style={s.hero}><ActivityIndicator color="#31D6B0" /><Text style={s.subtitle}>جارٍ تجهيز حسابك…</Text></View> : session && !profile?.profile_completed ? <ProfileOnboarding user={session.user} initialProfile={profile} onComplete={() => void refreshProfile()} /> : !session ? <View style={s.hero}>
       <Text style={s.eyebrow}>{ar ? "مساحتك، صوتك، أصدقاؤك" : "Your space, your voice, your friends"}</Text>
       <Text style={s.heroTitle}>{ar ? "أهلاً بك في جيهو" : "Welcome to JEHOO"}</Text>
       <Text style={s.body}>{ar ? "سجّل الدخول لعرض الغرف الحقيقية المرتبطة بحسابك." : "Sign in to discover live rooms connected to your account."}</Text>
