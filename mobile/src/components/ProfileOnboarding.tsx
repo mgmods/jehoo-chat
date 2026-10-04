@@ -1,9 +1,10 @@
 import React, { useMemo, useState } from "react";
-import { ActivityIndicator, FlatList, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, FlatList, Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { supabase } from "@/lib/supabase";
 import * as ImagePicker from "expo-image-picker";
 import { COUNTRIES } from "@/data/countries";
+import Ionicons from "@expo/vector-icons/Ionicons";
 
 type Props = {
   user: any;
@@ -11,7 +12,7 @@ type Props = {
   onComplete: () => void;
 };
 
-export default function ProfileOnboarding({ user, initialProfile, onComplete }: Props) {
+export default function ProfileOnboarding({ user, initialProfile, onComplete, onToggleLanguage }: Props) {
   const googleName = user?.user_metadata?.full_name || user?.user_metadata?.name || "";
   const googleAvatar = user?.user_metadata?.avatar_url || user?.user_metadata?.picture || "";
   const [firstName, setFirstName] = useState(initialProfile?.first_name || googleName.split(" ")[0] || "");
@@ -20,57 +21,95 @@ export default function ProfileOnboarding({ user, initialProfile, onComplete }: 
   const [birthDate, setBirthDate] = useState(initialProfile?.birth_date || "");
   const [country, setCountry] = useState(initialProfile?.country || "SY");
   const [avatarUrl, setAvatarUrl] = useState(initialProfile?.avatar_url || googleAvatar);
+  const [bio, setBio] = useState(initialProfile?.bio || "");
   const [avatarBusy, setAvatarBusy] = useState(false);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
-
-  async function chooseAvatar() {
-    setError("");
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], allowsEditing: true, aspect: [1, 1], quality: 0.85 });
-      if (result.canceled || !result.assets?.[0]) return;
-      const asset = result.assets[0];
-      const client = supabase;
-      if (!client || !user?.id) { setError("سجّل الدخول أولاً لاختيار الصورة."); return; }
-      setAvatarBusy(true);
-      const response = await fetch(asset.uri);
-      const blob = await response.blob();
-      const ext = (asset.fileName?.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
-      const path = `${user.id}/avatar-${Date.now()}.${ext}`;
-      const { error: uploadError } = await client.storage.from("avatars").upload(path, blob, { upsert: true, contentType: asset.mimeType || "image/jpeg" });
-      if (uploadError) throw uploadError;
-      const { data } = client.storage.from("avatars").getPublicUrl(path);
-      setAvatarUrl(data.publicUrl);
-    } catch (e) { setError(e instanceof Error ? `تعذر رفع الصورة: ${e.message}` : "تعذر رفع الصورة. حاول مرة أخرى."); }
-    finally { setAvatarBusy(false); }
-  }
-  const [countryOpen, setCountryOpen] = useState(false);
+  const [activeField, setActiveField] = useState<"nickname" | "bio" | "gender" | "country" | null>(null);
+  const [draftText, setDraftText] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+
   const selectedCountry = COUNTRIES.find((item) => item.code === country) || COUNTRIES[0];
   const today = new Date();
   const latestAllowedBirthDate = new Date(today.getFullYear() - 13, today.getMonth(), today.getDate());
   const earliestAllowedBirthDate = new Date(today.getFullYear() - 100, today.getMonth(), today.getDate());
-  const parsedBirthDate = /^\\d{4}-\\d{2}-\\d{2}$/.test(birthDate)
-    ? new Date(`${birthDate}T12:00:00`)
+  const parsedBirthDate = /^\d{4}-\d{2}-\d{2}$/.test(birthDate)
+    ? new Date(birthDate + "T12:00:00")
     : new Date(today.getFullYear() - 18, today.getMonth(), today.getDate());
-  const pickerValue = Number.isNaN(parsedBirthDate.getTime()) ? new Date(today.getFullYear() - 18, today.getMonth(), today.getDate()) : parsedBirthDate;
-  const formatBirthDate = (date: Date) =>
-    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  const pickerValue = Number.isNaN(parsedBirthDate.getTime())
+    ? new Date(today.getFullYear() - 18, today.getMonth(), today.getDate())
+    : parsedBirthDate;
 
-  const filteredCountries = useMemo(() => COUNTRIES, []);
+  const formatBirthDate = (date: Date) =>
+    date.getFullYear() + "-" + String(date.getMonth() + 1).padStart(2, "0") + "-" + String(date.getDate()).padStart(2, "0");
+
+  function openTextField(field: "nickname" | "bio") {
+    setError("");
+    setDraftText(field === "nickname" ? nickname : bio);
+    setActiveField(field);
+  }
+
+  async function chooseAvatar() {
+    setError("");
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.85,
+      });
+      if (result.canceled || !result.assets?.[0]) return;
+      const asset = result.assets[0];
+      const client = supabase;
+      if (!client || !user?.id) {
+        setError("سجّل الدخول أولاً لاختيار الصورة.");
+        return;
+      }
+      setAvatarBusy(true);
+      const response = await fetch(asset.uri);
+      const blob = await response.blob();
+      const ext = (asset.fileName?.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+      const path = user.id + "/avatar-" + Date.now() + "." + ext;
+      const { error: uploadError } = await client.storage.from("avatars").upload(path, blob, {
+        upsert: true,
+        contentType: asset.mimeType || "image/jpeg",
+      });
+      if (uploadError) throw uploadError;
+      const { data } = client.storage.from("avatars").getPublicUrl(path);
+      setAvatarUrl(data.publicUrl);
+    } catch (e) {
+      setError(e instanceof Error ? "تعذر رفع الصورة: " + e.message : "تعذر رفع الصورة. حاول مرة أخرى.");
+    } finally {
+      setAvatarBusy(false);
+    }
+  }
+
+  function saveModalField() {
+    if (activeField === "nickname") {
+      if (draftText.trim().length < 2) {
+        setError("اكتب الكنية أو الاسم المستعار.");
+        return;
+      }
+      setNickname(draftText.trim());
+    } else if (activeField === "bio") {
+      setBio(draftText.trim().slice(0, 160));
+    }
+    setActiveField(null);
+  }
 
   async function submit() {
     setError("");
-    if (firstName.trim().length < 2) return setError("اكتب الاسم الأول.");
     if (nickname.trim().length < 2) return setError("اكتب الكنية أو الاسم المستعار.");
     if (!gender) return setError("اختر الجنس.");
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) return setError("اكتب تاريخ الميلاد بهذا الشكل: 2000-05-21");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) return setError("اختر تاريخ الميلاد.");
     if (!country) return setError("اختر البلد.");
+
     const client = supabase;
     if (!client) {
       setError("الاتصال بالخدمة غير جاهز. أغلق التطبيق وافتحه وحاول مرة أخرى.");
       return;
     }
+
     setBusy(true);
     try {
       const { data: authData, error: authError } = await client.auth.getUser();
@@ -82,25 +121,22 @@ export default function ProfileOnboarding({ user, initialProfile, onComplete }: 
 
       const { error: saveError } = await client.from("profiles").upsert({
         id: currentUser.id,
-        first_name: firstName.trim(),
+        first_name: firstName.trim() || nickname.trim(),
         nickname: nickname.trim(),
         display_name: nickname.trim(),
         gender,
         birth_date: birthDate,
         country: country.toUpperCase(),
         avatar_url: avatarUrl.trim() || "",
+        bio: bio.trim(),
         profile_completed: true,
         updated_at: new Date().toISOString(),
       }, { onConflict: "id" });
 
       if (saveError) {
-        if (saveError.code === "42501") {
-          setError("لا تملك صلاحية حفظ الملف الشخصي. سجّل الدخول مرة أخرى.");
-        } else if (saveError.code === "22007") {
-          setError("تاريخ الميلاد غير صالح.");
-        } else {
-          setError("تعذر حفظ الحساب: " + saveError.message);
-        }
+        if (saveError.code === "42501") setError("لا تملك صلاحية حفظ الملف الشخصي. سجّل الدخول مرة أخرى.");
+        else if (saveError.code === "22007") setError("تاريخ الميلاد غير صالح.");
+        else setError("تعذر حفظ الحساب: " + saveError.message);
         return;
       }
 
@@ -112,113 +148,149 @@ export default function ProfileOnboarding({ user, initialProfile, onComplete }: 
     }
   }
 
-  return <KeyboardAvoidingView style={s.keyboard} behavior={Platform.OS === "ios" ? "padding" : "height"} keyboardVerticalOffset={Platform.OS === "ios" ? 12 : 0}><ScrollView style={s.scroll} contentContainerStyle={s.page} keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"} automaticallyAdjustKeyboardInsets showsVerticalScrollIndicator={false} nestedScrollEnabled>
-    <View style={s.top}>
-      <View style={s.progress}><View style={s.progressFill} /></View>
-      <Text style={s.brand}>JEHOO <Text style={s.mint}>●</Text> CHAT</Text>
-      <Text style={s.title}>خلّينا نكمّل حسابك</Text>
-      <Text style={s.subtitle}>معلومات بسيطة حتى نجهّز لك تجربة Jehoo شخصية وآمنة.</Text>
-    </View>
+  return (
+    <KeyboardAvoidingView style={s.keyboard} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <View style={s.screen}>
+        <ScrollView style={s.scroll} contentContainerStyle={s.page} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          <View style={s.hero}>
+            <Text style={s.title}>أكمل ملفك الشخصي</Text>
+            <Text style={s.subtitle}>أضف صورة وتاريخ ميلاد لقباً للمتابعة</Text>
+            <View style={s.avatarWrap}>
+              {avatarUrl ? <Image source={{ uri: avatarUrl }} style={s.avatar} /> : <View style={[s.avatar, s.avatarEmpty]}><Text style={s.avatarLetter}>م</Text></View>}
+              <Pressable disabled={avatarBusy} onPress={() => void chooseAvatar()} style={s.cameraButton} accessibilityLabel="اختيار صورة الملف الشخصي">
+                <Ionicons name="camera" size={26} color="#FFFFFF" />
+              </Pressable>
+            </View>
+          </View>
 
-    <View style={s.avatarWrap}>
-      {avatarUrl ? <Image source={{ uri: avatarUrl }} style={s.avatar} /> : <View style={[s.avatar, s.avatarEmpty]}><Text style={s.avatarEmoji}>🙂</Text></View>}
-      <Text style={s.avatarLabel}>صورتك الشخصية (اختيارية)</Text>
-      <Pressable disabled={avatarBusy} onPress={() => void chooseAvatar()} style={s.avatarButton}><Text style={s.avatarAction}>{avatarBusy ? "جارٍ رفع الصورة…" : "اختيار صورة من الاستوديو وقصّها"}</Text></Pressable>
-      {googleAvatar ? <Pressable onPress={() => setAvatarUrl(googleAvatar)}><Text style={s.avatarAction}>استخدام صورة Google</Text></Pressable> : null}
-      {avatarUrl && avatarUrl !== googleAvatar ? <Pressable onPress={() => setAvatarUrl(googleAvatar || "")}><Text style={s.avatarRemove}>إزالة الصورة المخصصة</Text></Pressable> : null}
-    </View>
+          <View style={s.infoSection}>
+            <Text style={s.sectionTitle}>المعلومات الأساسية</Text>
+            <View style={s.rows}>
+              <Pressable onPress={() => openTextField("nickname")} style={s.infoRow}>
+                <Text style={s.valueText} numberOfLines={1}>{nickname || "اختيار"}</Text>
+                <View style={s.rowEnd}><Text style={s.labelText}>اللقب</Text><Ionicons name="chevron-forward" size={18} color="#C9C9C9" /></View>
+              </Pressable>
+              <Pressable onPress={() => setActiveField("gender")} style={s.infoRow}>
+                <Text style={s.valueText}>{gender === "female" ? "أنثى" : gender === "male" ? "ذكر" : "اختيار"}</Text>
+                <View style={s.rowEnd}><Text style={s.labelText}>الجنس</Text><Ionicons name="chevron-forward" size={18} color="#C9C9C9" /></View>
+              </Pressable>
+              <Pressable onPress={() => setDatePickerOpen(true)} style={s.infoRow}>
+                <Text style={[s.valueText, !birthDate && s.mutedValue]}>{birthDate || "اختيار"}</Text>
+                <View style={s.rowEnd}><Text style={s.labelText}>تاريخ الميلاد</Text><Ionicons name="chevron-forward" size={18} color="#C9C9C9" /></View>
+              </Pressable>
+              <Pressable onPress={() => setActiveField("country")} style={s.infoRow}>
+                <Text style={s.valueText}>{selectedCountry.name}</Text>
+                <Text style={s.labelText}>الدولة</Text>
+              </Pressable>
+              <Pressable onPress={() => openTextField("bio")} style={s.infoRow}>
+                <Text style={[s.valueText, !bio && s.mutedValue]} numberOfLines={1}>{bio || "—"}</Text>
+                <View style={s.rowEnd}><Text style={s.labelText}>نبذة</Text><Ionicons name="chevron-forward" size={18} color="#C9C9C9" /></View>
+              </Pressable>
+            </View>
 
-    <View style={s.card}>
-      <Text style={s.label}>الاسم *</Text>
-      <TextInput value={firstName} onChangeText={setFirstName} placeholder="مثلاً: محمد" placeholderTextColor="#728295" style={s.input} maxLength={40} />
+            {error ? <Text style={s.error}>{error}</Text> : null}
+            <Pressable disabled={busy} onPress={() => void submit()} style={[s.primary, busy && s.primaryBusy]}>
+              {busy ? <ActivityIndicator color="#FFFFFF" /> : <Text style={s.primaryText}>متابعة</Text>}
+            </Pressable>
+          </View>
 
-      <Text style={s.label}>الكنية *</Text>
-      <TextInput value={nickname} onChangeText={setNickname} placeholder="مثلاً: أبو علي أو اسمك المستعار" placeholderTextColor="#728295" style={s.input} maxLength={30} />
+          <Pressable onPress={onToggleLanguage} style={s.languageButton}>
+            <Ionicons name="language-outline" size={18} color="#9A9A9A" />
+            <Text style={s.languageText}>العربية</Text>
+          </Pressable>
+        </ScrollView>
 
-      <Text style={s.label}>الجنس *</Text>
-      <View style={s.row}>
-        <Pressable onPress={() => setGender("male")} style={[s.choice, gender === "male" && s.choiceActive]}><Text style={[s.choiceText, gender === "male" && s.choiceTextActive]}>ذكر</Text></Pressable>
-        <Pressable onPress={() => setGender("female")} style={[s.choice, gender === "female" && s.choiceActive]}><Text style={[s.choiceText, gender === "female" && s.choiceTextActive]}>أنثى</Text></Pressable>
+        {datePickerOpen ? <DateTimePicker
+          value={pickerValue}
+          mode="date"
+          display={Platform.OS === "android" ? "calendar" : "spinner"}
+          minimumDate={earliestAllowedBirthDate}
+          maximumDate={latestAllowedBirthDate}
+          onChange={(event, selectedDate) => {
+            if (Platform.OS === "android") setDatePickerOpen(false);
+            if (event.type === "dismissed" || !selectedDate) return;
+            setBirthDate(formatBirthDate(selectedDate));
+            if (Platform.OS === "ios") setDatePickerOpen(false);
+          }}
+        /> : null}
+
+        <Modal visible={activeField === "nickname" || activeField === "bio"} transparent animationType="fade" onRequestClose={() => setActiveField(null)}>
+          <View style={s.modalBackdrop}><View style={s.modalCard}>
+            <Text style={s.modalTitle}>{activeField === "nickname" ? "اللقب" : "نبذة"}</Text>
+            <TextInput autoFocus value={draftText} onChangeText={setDraftText} placeholder={activeField === "nickname" ? "اكتب لقبك" : "اكتب نبذة قصيرة"} placeholderTextColor="#9A9A9A" style={s.modalInput} maxLength={activeField === "nickname" ? 30 : 160} multiline={activeField === "bio"} />
+            <View style={s.modalActions}>
+              <Pressable onPress={() => setActiveField(null)} style={s.modalCancel}><Text style={s.modalCancelText}>إلغاء</Text></Pressable>
+              <Pressable onPress={saveModalField} style={s.modalSave}><Text style={s.modalSaveText}>حفظ</Text></Pressable>
+            </View>
+          </View></View>
+        </Modal>
+
+        <Modal visible={activeField === "gender"} transparent animationType="fade" onRequestClose={() => setActiveField(null)}>
+          <View style={s.modalBackdrop}><View style={s.modalCard}>
+            <Text style={s.modalTitle}>الجنس</Text>
+            <Pressable onPress={() => { setGender("male"); setActiveField(null); }} style={s.modalChoice}><Text style={s.modalChoiceText}>ذكر</Text></Pressable>
+            <Pressable onPress={() => { setGender("female"); setActiveField(null); }} style={s.modalChoice}><Text style={s.modalChoiceText}>أنثى</Text></Pressable>
+            <Pressable onPress={() => setActiveField(null)} style={s.modalCancelFull}><Text style={s.modalCancelText}>إلغاء</Text></Pressable>
+          </View></View>
+        </Modal>
+
+        <Modal visible={activeField === "country"} transparent animationType="slide" onRequestClose={() => setActiveField(null)}>
+          <View style={s.modalBackdrop}><View style={s.countryModal}>
+            <View style={s.modalHeader}><Text style={s.modalTitle}>الدولة</Text><Pressable onPress={() => setActiveField(null)}><Ionicons name="close" size={24} color="#292929" /></Pressable></View>
+            <FlatList data={COUNTRIES} keyExtractor={(item) => item.code} showsVerticalScrollIndicator={false} renderItem={({ item }) => (
+              <Pressable onPress={() => { setCountry(item.code); setActiveField(null); }} style={s.countryRow}>
+                <Text style={s.countryFlag}>{item.flag}</Text><Text style={s.countryName}>{item.name}</Text>{item.code === country ? <Ionicons name="checkmark" size={20} color="#19D1AE" /> : null}
+              </Pressable>
+            )} />
+          </View></View>
+        </Modal>
       </View>
-
-      <Text style={s.label}>تاريخ الميلاد *</Text>
-      <Pressable onPress={() => setDatePickerOpen(true)} style={s.dateButton}>
-        <Text style={[s.dateText, !birthDate && s.datePlaceholder]}>{birthDate || "اختر تاريخ ميلادك"}</Text>
-        <Text style={s.dateIcon}>📅</Text>
-      </Pressable>
-      {datePickerOpen ? <DateTimePicker
-        value={pickerValue}
-        mode="date"
-        display={Platform.OS === "android" ? "calendar" : "spinner"}
-        minimumDate={earliestAllowedBirthDate}
-        maximumDate={latestAllowedBirthDate}
-        onChange={(event, selectedDate) => {
-          if (Platform.OS === "android") setDatePickerOpen(false);
-          if (event.type === "dismissed" || !selectedDate) return;
-          setBirthDate(formatBirthDate(selectedDate));
-          if (Platform.OS === "ios") setDatePickerOpen(false);
-        }}
-      /> : null}
-
-      <Text style={s.label}>البلد *</Text>
-      <Pressable onPress={() => setCountryOpen(!countryOpen)} style={s.countryButton}>
-        <Text style={s.countryFlag}>{selectedCountry.flag}</Text>
-        <Text style={s.countryName}>{selectedCountry.name}</Text>
-        <Text style={s.chevron}>{countryOpen ? "⌃" : "⌄"}</Text>
-      </Pressable>
-      {countryOpen ? <View style={s.countryList}>
-        <FlatList data={filteredCountries} keyExtractor={(item) => item.code} nestedScrollEnabled style={{ maxHeight: 230 }}
-          renderItem={({ item }) => <Pressable onPress={() => { setCountry(item.code); setCountryOpen(false); }} style={s.countryRow}><Text style={s.countryFlag}>{item.flag}</Text><Text style={s.countryRowName}>{item.name}</Text>{item.code === country ? <Text style={s.check}>✓</Text> : null}</Pressable>} />
-      </View> : null}
-
-      {error ? <Text style={s.error}>{error}</Text> : null}
-      <Pressable disabled={busy} onPress={submit} style={[s.primary, busy && { opacity: .7 }]}>{busy ? <ActivityIndicator color="#06251E" /> : <Text style={s.primaryText}>إنشاء الحساب والمتابعة</Text>}</Pressable>
-      <Text style={s.privacy}>بمتابعتك، يتم حفظ ملفك على Jehoo حتى لا تضطر لتعبئة بياناتك مرة أخرى.</Text>
-    </View>
-  </ScrollView></KeyboardAvoidingView>;
+    </KeyboardAvoidingView>
+  );
 }
 
 const s = StyleSheet.create({
-  keyboard:{flex:1},
-  scroll:{flex:1,backgroundColor:"#0A1118"},
-  page:{flexGrow:1,backgroundColor:"#0A1118",paddingHorizontal:20,paddingTop:18,paddingBottom:36},
-  top:{alignItems:"flex-end"},
-  progress:{height:4,width:"100%",backgroundColor:"#263342",borderRadius:4,marginBottom:24},
-  progressFill:{height:4,width:"25%",backgroundColor:"#31D6B0",borderRadius:4},
-  brand:{alignSelf:"flex-start",fontSize:18,fontWeight:"900",color:"#F2F7FA",letterSpacing:1},
-  mint:{color:"#31D6B0"},
-  title:{fontSize:27,fontWeight:"900",color:"#F2F7FA",marginTop:24},
-  subtitle:{fontSize:13,lineHeight:21,color:"#94A3B8",textAlign:"right",marginTop:8},
-  avatarWrap:{alignItems:"center",marginVertical:18},
-  avatar:{width:82,height:82,borderRadius:41,borderWidth:2,borderColor:"#31D6B0"},
-  avatarEmpty:{backgroundColor:"#121B25",alignItems:"center",justifyContent:"center"},
-  avatarEmoji:{fontSize:34},
-  avatarButton:{marginTop:8,borderWidth:1,borderColor:"#31D6B0",borderRadius:12,paddingVertical:10,paddingHorizontal:14},
-  avatarRemove:{color:"#FDA4AF",fontSize:12,fontWeight:"800",marginTop:8},
-  avatarLabel:{color:"#94A3B8",fontSize:11,marginTop:7},
-  avatarAction:{color:"#31D6B0",fontWeight:"800",fontSize:12,marginTop:5},
-  card:{backgroundColor:"#121B25",borderWidth:1,borderColor:"#263342",borderRadius:22,padding:18,paddingBottom:22},
-  label:{color:"#D9E3EA",fontSize:13,fontWeight:"800",textAlign:"right",marginTop:10,marginBottom:7},
-  input:{backgroundColor:"#0A1118",borderWidth:1,borderColor:"#263342",borderRadius:12,color:"#F2F7FA",paddingHorizontal:13,paddingVertical:12,textAlign:"right",minHeight:46},
-  dateButton:{backgroundColor:"#0A1118",borderWidth:1,borderColor:"#263342",borderRadius:12,minHeight:50,paddingHorizontal:13,flexDirection:"row",alignItems:"center"},
-  dateText:{flex:1,color:"#F2F7FA",textAlign:"right",fontWeight:"700"},
-  datePlaceholder:{color:"#728295",fontWeight:"400"},
-  dateIcon:{fontSize:20,marginLeft:10},
-  row:{flexDirection:"row",gap:10},
-  choice:{flex:1,minHeight:46,borderRadius:12,borderWidth:1,borderColor:"#263342",alignItems:"center",justifyContent:"center",backgroundColor:"#0A1118"},
-  choiceActive:{borderColor:"#31D6B0",backgroundColor:"#18352F"},
-  choiceText:{color:"#94A3B8",fontWeight:"800"},
-  choiceTextActive:{color:"#31D6B0"},
-  countryButton:{minHeight:50,flexDirection:"row",alignItems:"center",backgroundColor:"#0A1118",borderWidth:1,borderColor:"#263342",borderRadius:12,paddingHorizontal:12},
-  countryFlag:{fontSize:22,width:34},
-  countryName:{flex:1,color:"#F2F7FA",textAlign:"right",fontWeight:"700"},
-  chevron:{color:"#94A3B8",fontSize:18,paddingLeft:8},
-  countryList:{marginTop:8,borderWidth:1,borderColor:"#263342",borderRadius:14,backgroundColor:"#0D151E",overflow:"hidden"},
-  countryRow:{minHeight:45,flexDirection:"row",alignItems:"center",paddingHorizontal:12,borderBottomWidth:1,borderBottomColor:"#1D2936"},
-  countryRowName:{flex:1,color:"#D9E3EA",textAlign:"right",fontSize:13},
-  check:{color:"#31D6B0",fontWeight:"900"},
-  error:{color:"#FDA4AF",fontSize:12,textAlign:"right",marginTop:12,lineHeight:18},
-  primary:{minHeight:50,borderRadius:13,backgroundColor:"#31D6B0",alignItems:"center",justifyContent:"center",marginTop:18},
-  primaryText:{fontWeight:"900",color:"#06251E",fontSize:14},
-  privacy:{color:"#728295",fontSize:10,lineHeight:16,textAlign:"center",marginTop:12}
+  keyboard: { flex: 1, backgroundColor: "#FFFFFF" },
+  screen: { flex: 1, backgroundColor: "#FFFFFF" },
+  scroll: { flex: 1, backgroundColor: "#FFFFFF" },
+  page: { flexGrow: 1, paddingHorizontal: 28, paddingTop: 56, paddingBottom: 18, backgroundColor: "#FFFFFF" },
+  hero: { alignItems: "center" },
+  title: { color: "#292929", fontSize: 30, lineHeight: 38, fontWeight: "800", textAlign: "center" },
+  subtitle: { marginTop: 30, color: "#A5A5A5", fontSize: 19, lineHeight: 27, fontWeight: "400", textAlign: "center" },
+  avatarWrap: { width: 180, height: 180, marginTop: 34, marginBottom: 54, position: "relative" },
+  avatar: { width: 180, height: 180, borderRadius: 90, borderWidth: 3, borderColor: "#A6EEE6" },
+  avatarEmpty: { backgroundColor: "#90766C", alignItems: "center", justifyContent: "center" },
+  avatarLetter: { color: "#FFFFFF", fontSize: 78, fontWeight: "500" },
+  cameraButton: { position: "absolute", left: -2, bottom: -4, width: 60, height: 60, borderRadius: 30, backgroundColor: "#19D1AE", alignItems: "center", justifyContent: "center", shadowColor: "#000000", shadowOpacity: 0.14, shadowRadius: 6, shadowOffset: { width: 0, height: 3 }, elevation: 3 },
+  infoSection: { width: "100%" },
+  sectionTitle: { color: "#292929", fontSize: 29, lineHeight: 36, fontWeight: "800", textAlign: "right", marginBottom: 10 },
+  rows: { width: "100%" },
+  infoRow: { minHeight: 87, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#EAEAEA", flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  valueText: { flex: 1, color: "#292929", fontSize: 21, lineHeight: 28, fontWeight: "500", textAlign: "right" },
+  mutedValue: { color: "#CFCFCF" },
+  rowEnd: { flexDirection: "row", alignItems: "center", gap: 12, marginLeft: 18 },
+  labelText: { color: "#A6A6A6", fontSize: 20, lineHeight: 27, fontWeight: "400", textAlign: "left" },
+  error: { color: "#B33A3A", fontSize: 13, lineHeight: 19, textAlign: "right", marginTop: 12 },
+  primary: { width: "100%", minHeight: 85, marginTop: 26, borderRadius: 45, backgroundColor: "#19D1AE", alignItems: "center", justifyContent: "center", shadowColor: "#000000", shadowOpacity: 0.12, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 4 },
+  primaryBusy: { opacity: 0.75 },
+  primaryText: { color: "#FFFFFF", fontSize: 23, lineHeight: 30, fontWeight: "800" },
+  languageButton: { alignSelf: "center", flexDirection: "row", alignItems: "center", gap: 7, marginTop: 26, paddingVertical: 8, paddingHorizontal: 14 },
+  languageText: { color: "#9A9A9A", fontSize: 15, fontWeight: "500" },
+  modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.24)", justifyContent: "center", padding: 24 },
+  modalCard: { backgroundColor: "#FFFFFF", borderRadius: 24, padding: 22, shadowColor: "#000000", shadowOpacity: 0.16, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 8 },
+  modalTitle: { color: "#292929", fontSize: 22, fontWeight: "800", textAlign: "right", marginBottom: 16 },
+  modalInput: { minHeight: 54, borderBottomWidth: 1, borderBottomColor: "#DCDCDC", color: "#292929", fontSize: 18, textAlign: "right", paddingVertical: 10 },
+  modalActions: { flexDirection: "row", justifyContent: "flex-start", gap: 10, marginTop: 18 },
+  modalCancel: { flex: 1, minHeight: 48, borderRadius: 24, backgroundColor: "#F3F3F3", alignItems: "center", justifyContent: "center" },
+  modalSave: { flex: 1, minHeight: 48, borderRadius: 24, backgroundColor: "#19D1AE", alignItems: "center", justifyContent: "center" },
+  modalCancelText: { color: "#666666", fontSize: 16, fontWeight: "700" },
+  modalSaveText: { color: "#FFFFFF", fontSize: 16, fontWeight: "800" },
+  modalChoice: { minHeight: 54, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#EAEAEA", alignItems: "center", justifyContent: "center" },
+  modalChoiceText: { color: "#292929", fontSize: 18, fontWeight: "600" },
+  modalCancelFull: { minHeight: 50, marginTop: 8, alignItems: "center", justifyContent: "center" },
+  modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
+  countryModal: { maxHeight: "78%", backgroundColor: "#FFFFFF", borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 20, marginTop: "auto" },
+  countryRow: { minHeight: 54, flexDirection: "row", alignItems: "center", borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#EAEAEA", paddingVertical: 4 },
+  countryFlag: { fontSize: 22, width: 38 },
+  countryName: { flex: 1, color: "#292929", fontSize: 17, textAlign: "right" },
 });
