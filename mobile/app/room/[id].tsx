@@ -113,11 +113,37 @@ export default function VoiceRoomRoute() {
 
   async function joinVoice(password?:string){
     const client=supabase;
-    if(!client||!room)return;
+    if(!client||!room||busy||liveRoomRef.current)return;
     if(room.status==="closed"){setError("الغرفة مغلقة ولا يمكن الانضمام إليها.");return;}
     if(room.status==="locked"&&!isHost){setError("الغرفة مقفلة حالياً.");return;}
     setBusy(true);setError("");
-    try{const {error:joinError}=await client.rpc("jehoo_join_room",{p_room_id:room.id,p_password:password??null});if(joinError){ if(String(joinError.message||"").includes("ROOM_PASSWORD_REQUIRED")){setPasswordModal(true);return;} throw joinError; }const {data,error:tokenError}=await client.functions.invoke("livekit-token",{body:{roomName:room.livekit_room_name}});if(tokenError)throw tokenError;if(!data?.serverUrl||!data?.participantToken)throw new Error("Voice token response is incomplete.");await AudioSession.startAudioSession();const connectedRoom=new Room();await connectedRoom.connect(data.serverUrl,data.participantToken,{});const canPublish=Boolean(data.canPublish);if(canPublish){await connectedRoom.localParticipant.setMicrophoneEnabled(true);}else{await connectedRoom.localParticipant.setMicrophoneEnabled(false);}setMicEnabled(canPublish);liveRoomRef.current=connectedRoom;setLiveRoom(connectedRoom);setLive({url:data.serverUrl,token:data.participantToken})}catch(e){if(client&&room)await client.rpc("jehoo_leave_room",{p_room_id:room.id});setError(e instanceof Error?e.message:"Unable to connect to the voice room.");await AudioSession.stopAudioSession().catch(()=>undefined)}finally{setBusy(false)}}
+    let pendingRoom:Room|null=null;
+    try{
+      const {error:joinError}=await client.rpc("jehoo_join_room",{p_room_id:room.id,p_password:password??null});
+      if(joinError){
+        if(String(joinError.message||"").includes("ROOM_PASSWORD_REQUIRED")){setPasswordModal(true);return;}
+        throw joinError;
+      }
+      const {data,error:tokenError}=await client.functions.invoke("livekit-token",{body:{roomName:room.livekit_room_name}});
+      if(tokenError)throw tokenError;
+      if(!data?.serverUrl||!data?.participantToken)throw new Error("Voice token response is incomplete.");
+      await AudioSession.startAudioSession();
+      pendingRoom=new Room();
+      await pendingRoom.connect(data.serverUrl,data.participantToken,{});
+      const canPublish=Boolean(data.canPublish);
+      await pendingRoom.localParticipant.setMicrophoneEnabled(canPublish);
+      setMicEnabled(canPublish);
+      liveRoomRef.current=pendingRoom;
+      setLiveRoom(pendingRoom);
+      setLive({url:data.serverUrl,token:data.participantToken});
+      pendingRoom=null;
+    }catch(e){
+      if(pendingRoom){try{await pendingRoom.disconnect()}catch{}}
+      await client.rpc("jehoo_leave_room",{p_room_id:room.id});
+      setError(e instanceof Error?e.message:"Unable to connect to the voice room.");
+      await AudioSession.stopAudioSession().catch(()=>undefined);
+    }finally{setBusy(false)}
+  }
   async function leaveVoice(){const client=supabase;try{await liveRoomRef.current?.disconnect()}catch{}liveRoomRef.current=null;setLiveRoom(null);setLive(null);await AudioSession.stopAudioSession().catch(()=>undefined);if(client&&room){const {error:leaveError}=await client.rpc("jehoo_leave_room",{p_room_id:room.id});if(leaveError)setError(leaveError.message);else{setMicRequestSent(false);void loadRoom()}}}
   async function handleMicrophoneRequest(requestId:string,accept:boolean){const client=supabase;if(!client)return;setHandlingRequest(requestId);setError("");try{const {data:decision,error:handleError}=await client.functions.invoke("room-microphone",{body:{requestId,accept}});if(handleError)throw handleError;if(decision?.error)throw new Error(String(decision.error));await loadRoom()}catch(e){setError(e instanceof Error?e.message:"تعذر معالجة طلب المايك")}finally{setHandlingRequest(null)}}
   async function requestMicrophone(){const client=supabase;if(!client||!room)return;setMicRequestBusy(true);setError("");try{const {error:requestError}=await client.rpc("jehoo_request_microphone",{p_room_id:room.id});if(requestError)throw requestError;setMicRequestSent(true)}catch(e){setError(e instanceof Error?e.message:"تعذر إرسال طلب المايك")}finally{setMicRequestBusy(false)}}
