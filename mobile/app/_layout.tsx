@@ -3,6 +3,8 @@ import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { supabase } from "@/lib/supabase";
+import * as Notifications from "expo-notifications";
+import * as Device from "expo-device";
 
 type SplashSettings = { image_url: string; duration_seconds: number };
 
@@ -11,6 +13,25 @@ export default function RootLayout() {
   const [splashLoading, setSplashLoading] = useState(true);
   const [showSplash, setShowSplash] = useState(false);
   const splashTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+
+  useEffect(() => {
+    if (!supabase || !Device.isDevice) return;
+    let active = true;
+    (async () => {
+      try {
+        const permission = await Notifications.getPermissionsAsync();
+        let status = permission.status;
+        if (status !== "granted") status = (await Notifications.requestPermissionsAsync()).status;
+        if (status !== "granted" || !active) return;
+        const token = (await Notifications.getExpoPushTokenAsync()).data;
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user && active) await supabase.from("push_tokens").upsert({ user_id: user.id, expo_push_token: token, platform: "mobile", updated_at: new Date().toISOString() }, { onConflict: "expo_push_token" });
+        if (active) await Notifications.setNotificationChannelAsync("official", { name: "الرسائل الرسمية", importance: Notifications.AndroidImportance.MAX });
+      } catch (error) { console.warn("Push registration failed", error); }
+    })();
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     if (!supabase) {
