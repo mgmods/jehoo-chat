@@ -26,8 +26,15 @@ Deno.serve(async (req) => {
     const contentUrl=input.content_url?String(input.content_url).trim().slice(0,2000):null;
     const htmlContent=contentType==="html"&&input.html_content?String(input.html_content).slice(0,10000):null;
     const targetType=input.target_type==="user"?"user":"all";
-    const targetId=targetType==="user"?String(input.target_user_id??"").trim():null;
-    if (!title || (targetType==="user"&&!targetId)) return new Response(JSON.stringify({error:"Title and target user ID are required"}), {status:400,headers:{...cors,"Content-Type":"application/json"}});
+    const requestedTarget=targetType==="user"?String(input.target_user_id??"").trim():null;
+    let targetId:string|null=null;
+    if (targetType==="user" && requestedTarget) {
+      const profileQuery = /^\\d+$/.test(requestedTarget) ? admin.from("profiles").select("id").eq("public_id", Number(requestedTarget)).maybeSingle() : admin.from("profiles").select("id").eq("id", requestedTarget).maybeSingle();
+      const {data:targetProfile,error:targetError}=await profileQuery;
+      if(targetError) throw targetError;
+      targetId=targetProfile?.id??null;
+    }
+    if (!title || (targetType==="user"&&(!requestedTarget||!targetId))) return new Response(JSON.stringify({error:"Title and target user ID are required"}), {status:400,headers:{...cors,"Content-Type":"application/json"}});
     if (contentType==="link" && contentUrl && !/^https:\/\//i.test(contentUrl)) return new Response(JSON.stringify({error:"Links must use HTTPS"}), {status:400,headers:{...cors,"Content-Type":"application/json"}});
     const {data:message,error:insertError}=await admin.from("official_messages").insert({title,body,content_type:contentType,content_url:contentUrl,html_content:htmlContent,target_type:targetType,target_user_id:targetId,created_by:user.id,pinned:true}).select("id").single();
     if (insertError) throw insertError;
