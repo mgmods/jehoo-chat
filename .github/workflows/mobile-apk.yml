@@ -13,6 +13,12 @@ on:
 permissions:
   contents: read
 
+# Android releases are built by GitHub Actions, not by Vercel.
+# Keep only the newest build for each branch to avoid duplicate CI work.
+concurrency:
+  group: mobile-apk-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
