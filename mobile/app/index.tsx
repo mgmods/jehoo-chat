@@ -30,6 +30,7 @@ export default function HomeScreen() {
   const [roomDescription, setRoomDescription] = useState("");
   const [createBusy, setCreateBusy] = useState(false);
   const [tab, setTab] = useState<"rooms" | "chats" | "me">("rooms");
+  const [roomFilter, setRoomFilter] = useState<"popular" | "egypt" | "syria">("popular");
   const copy = messages[locale];
   const ar = locale === "ar";
 
@@ -190,9 +191,17 @@ export default function HomeScreen() {
 
   return <SafeAreaView edges={["top","left","right","bottom"]} style={s.safe}>
     {tab === "rooms" ? <View style={s.header}>
-      <View><Text style={s.brand}>JEHOO <Text style={s.mint}>●</Text> CHAT</Text><Text style={s.subtitle}>{ar ? "مساحتك، صوتك، أصدقاؤك" : "Your space, your voice, your friends"}</Text></View>
-      <Pressable style={s.language} onPress={() => setLocale(ar ? "en" : "ar")}><Text style={s.languageText}>{ar ? "English" : "العربية"}</Text></Pressable>
-    </View> : null}
+      <View style={s.quickIcons}>
+        <Pressable accessibilityRole="button" onPress={() => setTab("rooms")} style={s.quickButton}><Text style={s.quickIcon}>⌂</Text></Pressable>
+        <Pressable accessibilityRole="button" onPress={() => void loadRooms()} style={s.quickButton}><Text style={s.quickIcon}>⌕</Text></Pressable>
+        <Pressable accessibilityRole="button" onPress={() => setShowCreateRoom(true)} style={s.quickButton}><Text style={s.quickIcon}>🎉</Text></Pressable>
+      </View>
+      <View style={s.topLinkGroup}>
+        <Pressable onPress={() => { setTab("rooms"); void loadRooms(); }}><Text style={s.topLinkActive}>{ar ? "حفلة" : "Party"}</Text></Pressable>
+        <Pressable onPress={() => { setTab("rooms"); void loadRooms(); }}><Text style={s.topLink}>{ar ? "ملكي" : "Mine"}</Text></Pressable>
+        <Pressable onPress={() => { setTab("rooms"); void loadRooms(); }}><Text style={s.topLink}>{ar ? "الفعاليات" : "Events"}</Text></Pressable>
+      </View>
+    </View>
     <ScrollView style={s.contentScroll} contentContainerStyle={s.contentContainer} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
       {!session ? <View style={s.hero}>
         <Text style={s.eyebrow}>{ar ? "مساحتك، صوتك، أصدقاؤك" : "Your space, your voice, your friends"}</Text>
@@ -200,22 +209,23 @@ export default function HomeScreen() {
         <Text style={s.body}>{ar ? "سجّل الدخول لعرض الغرف الحقيقية المرتبطة بحسابك." : "Sign in to discover live rooms connected to your account."}</Text>
         <Pressable disabled={authBusy} onPress={signIn} style={s.primary}>{authBusy ? <ActivityIndicator color="#06251E" /> : <Text style={s.primaryText}>{ar ? "المتابعة باستخدام Google" : "Continue with Google"}</Text>}</Pressable>
       </View> : tab === "rooms" ? <View>
-        <View style={s.topLinks}>
-          <View style={s.topLinkGroup}>
-            <Pressable onPress={() => setTab("rooms")}><Text style={s.topLinkActive}>{ar ? "ملكي" : "Mine"}</Text></Pressable>
-            <Pressable onPress={() => { setTab("rooms"); void loadRooms(); }}><Text style={s.topLink}>{ar ? "الفعاليات" : "Events"}</Text></Pressable>
-            <Pressable onPress={() => setShowCreateRoom(true)}><Text style={s.topLink}>{ar ? "حفلة" : "Party"}</Text></Pressable>
-          </View>
-          <View style={s.quickIcons}>
-            <Pressable accessibilityRole="button" onPress={() => setTab("rooms")} style={s.quickButton}><Text style={s.quickIcon}>⌂</Text></Pressable>
-            <Pressable accessibilityRole="button" onPress={() => void loadRooms()} style={s.quickButton}><Text style={s.quickIcon}>⌕</Text></Pressable>
-            <Pressable accessibilityRole="button" onPress={() => setShowCreateRoom(true)} style={s.quickButton}><Text style={s.quickIcon}>🎉</Text></Pressable>
-          </View>
-        </View>
         <Pressable onPress={() => { setTab("rooms"); void loadRooms(); }} style={s.banner}>
           <View style={s.bannerGlow}><Text style={s.bannerKicker}>JEHOO ✦ LIVE</Text><Text style={s.bannerTitle}>{ar ? "مكافآت الشحن" : "Recharge Rewards"}</Text><Text style={s.bannerText}>{ar ? "ادخل غرفتك المفضلة وتعرّف على أصدقاء جدد" : "Join your favorite rooms and meet new friends"}</Text><View style={s.bannerPill}><Text style={s.bannerPillText}>{ar ? "اكتشف الآن  ←" : "Explore now  →"}</Text></View></View>
         </Pressable>
-        <View style={s.categoryRow}>{[[ "👑", ar ? "ثراء" : "Rich", "#F3B54A"],["💎", "CP", "#A44CF0"],["🏆", ar ? "قربي" : "Nearby", "#3997E8"]].map(([emoji,label,color]) => <Pressable key={label} style={[s.categoryCard,{backgroundColor:color+"22",borderColor:color}]} onPress={() => { setTab("rooms"); void loadRooms(); }}><Text style={s.categoryEmoji}>{emoji}</Text><Text style={s.categoryLabel}>{label}</Text></Pressable>)}</View>
+        <View style={s.categoryRow}>{[
+          { label: ar ? "قربي" : "Nearby", color: "#3997E8", count: 3, icon: "👑" },
+          { label: "CP", color: "#A44CF0", count: 2, icon: "💎" },
+          { label: ar ? "الثروة" : "Rich", color: "#F3B54A", count: 3, icon: "🏆" },
+        ].map(item => <Pressable key={item.label} style={[s.categoryCard,{backgroundColor:item.color+"22",borderColor:item.color}]} onPress={() => { setTab("rooms"); void loadRooms(); }}>
+          <View style={s.categoryPeople}>{Array.from({length:item.count}).map((_,i)=><View key={i} style={s.categoryAvatar}><Text style={s.categoryCrown}>{item.icon}</Text><Text style={s.categoryPerson}>👤</Text></View>)}</View>
+          <Text style={s.categoryLabel}>{item.label}</Text>
+        </Pressable>)}</View>
+        <View style={s.filterRow}>
+          <Pressable onPress={() => { setRoomFilter("popular"); void loadRooms(); }} style={[s.filterPill,roomFilter==="popular"&&s.filterPillActive]}><Text style={[s.filterText,roomFilter==="popular"&&s.filterTextActive]}>🔥 {ar ? "شائع" : "Popular"}</Text></Pressable>
+          <Pressable onPress={() => { setRoomFilter("egypt"); void loadRooms(); }} style={[s.filterPill,roomFilter==="egypt"&&s.filterPillActive]}><Text style={[s.filterText,roomFilter==="egypt"&&s.filterTextActive]}>🇪🇬 مصر</Text></Pressable>
+          <Pressable onPress={() => { setRoomFilter("syria"); void loadRooms(); }} style={[s.filterPill,roomFilter==="syria"&&s.filterPillActive]}><Text style={[s.filterText,roomFilter==="syria"&&s.filterTextActive]}>🇸🇾 سوريا</Text></Pressable>
+          <Pressable onPress={() => setRoomFilter(roomFilter==="popular"?"egypt":roomFilter==="egypt"?"syria":"popular")} style={s.dropdown}><Text style={s.filterText}>⌄</Text></Pressable>
+        </View>
         <View style={s.sectionHeader}><View><Text style={s.sectionTitle}>{ar ? "الرومات النشطة" : "Live rooms"}</Text><Text style={s.subtitle}>{ar ? "اختر مساحة تناسبك" : "Find your space"}</Text></View><Pressable onPress={() => void loadRooms()} style={s.secondary}><Text style={s.secondaryText}>{ar ? "تحديث ↻" : "Refresh ↻"}</Text></Pressable></View>
         <View style={s.actionsRow}>
           <Pressable onPress={() => setShowCreateRoom(v => !v)} style={[s.primary,{flex:1}]}><Text style={s.primaryText}>{showCreateRoom ? (ar ? "إلغاء" : "Cancel") : (ar ? "+ إنشاء غرفة" : "+ Create room")}</Text></Pressable>
@@ -248,7 +258,7 @@ export default function HomeScreen() {
 const s = StyleSheet.create({
   safe:{flex:1,backgroundColor:"#F7F8F6"},
   contentScroll:{flex:1},
-  contentContainer:{paddingHorizontal:0,paddingTop:0,paddingBottom:112},
+  contentContainer:{paddingHorizontal:0,paddingTop:0,paddingBottom:128},
   header:{height:69,flexDirection:"row",alignItems:"center",justifyContent:"space-between",paddingHorizontal:20,backgroundColor:"#F7F8F6"},
   topLinks:{flex:1,flexDirection:"row-reverse",alignItems:"center",justifyContent:"flex-start",gap:26},
   topLinkGroup:{flexDirection:"row-reverse",alignItems:"center",gap:24},
@@ -273,7 +283,7 @@ const s = StyleSheet.create({
   categoryLabel:{fontSize:21,fontWeight:"900",color:"#FFFFFF",marginTop:9},
   categoryPeople:{flexDirection:"row",alignItems:"center",justifyContent:"center",gap:5},
   categoryAvatar:{width:45,height:45,borderRadius:23,backgroundColor:"#FFFFFFAA",borderWidth:2,borderColor:"#FFFFFF",alignItems:"center",justifyContent:"center"},
-  categoryCrown:{position:"absolute",top:-11,fontSize:16},
+  categoryCrown:{position:"absolute",top:-11,fontSize:16},categoryPerson:{fontSize:20},
   filterRow:{flexDirection:"row-reverse",alignItems:"center",gap:8,marginHorizontal:20,marginBottom:16},
   filterPill:{height:52,borderRadius:26,paddingHorizontal:17,alignItems:"center",justifyContent:"center",backgroundColor:"#FFFFFF",borderWidth:1,borderColor:"#E1E6E3"},
   filterPillActive:{backgroundColor:"#19C995",borderColor:"#19C995"},
@@ -282,7 +292,7 @@ const s = StyleSheet.create({
   dropdown:{height:52,width:52,borderRadius:26,backgroundColor:"#FFFFFF",borderWidth:1,borderColor:"#E1E6E3",alignItems:"center",justifyContent:"center"},
   roomGrid:{flexDirection:"row",flexWrap:"wrap",columnGap:21,rowGap:17,marginHorizontal:20},
   room:{width:"48%",minWidth:0,height:405,overflow:"hidden",borderRadius:25,borderWidth:1,borderColor:"#E2E6E3",backgroundColor:"#FFFFFF",shadowColor:"#17251F",shadowOpacity:0.08,shadowRadius:10,elevation:2},
-  roomCover:{flex:1,width:"100%",alignItems:"center",justifyContent:"center",position:"relative",backgroundColor:"#D9E8E2"},
+  roomCover:{height:"72%",width:"100%",alignItems:"center",justifyContent:"center",position:"relative",backgroundColor:"#D9E8E2"},
   roomEmoji:{fontSize:50},
   roomCoverHint:{fontSize:11,color:"#FFFFFF",fontWeight:"900",marginTop:7},
   liveBadge:{position:"absolute",top:13,right:13,bottom:undefined,left:undefined,backgroundColor:"#FFFFFFDD",borderRadius:10,paddingHorizontal:8,paddingVertical:4},
