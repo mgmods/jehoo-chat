@@ -73,24 +73,40 @@ export default function ProfileOnboarding({ user, initialProfile, onComplete }: 
     }
     setBusy(true);
     try {
-      const { error: saveError } = await client.rpc("jehoo_complete_profile", {
-        p_first_name: firstName.trim(),
-        p_nickname: nickname.trim(),
-        p_gender: gender,
-        p_birth_date: birthDate,
-        p_country: country,
-        p_avatar_url: avatarUrl.trim() || null,
-      });
-      if (saveError) {
-        const message = saveError.message.includes("invalid_birth_date")
-          ? "العمر يجب أن يكون بين 13 و100 سنة."
-          : "تعذر حفظ الحساب. تحقق من اتصالك وحاول مرة أخرى.";
-        setError(message);
+      const { data: authData, error: authError } = await client.auth.getUser();
+      const currentUser = authData.user;
+      if (authError || !currentUser?.id || currentUser.id !== user?.id) {
+        setError("انتهت جلسة الدخول. سجّل الدخول مرة أخرى.");
         return;
       }
+
+      const { error: saveError } = await client.from("profiles").upsert({
+        id: currentUser.id,
+        first_name: firstName.trim(),
+        nickname: nickname.trim(),
+        display_name: nickname.trim(),
+        gender,
+        birth_date: birthDate,
+        country: country.toUpperCase(),
+        avatar_url: avatarUrl.trim() || "",
+        profile_completed: true,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "id" });
+
+      if (saveError) {
+        if (saveError.code === "42501") {
+          setError("لا تملك صلاحية حفظ الملف الشخصي. سجّل الدخول مرة أخرى.");
+        } else if (saveError.code === "22007") {
+          setError("تاريخ الميلاد غير صالح.");
+        } else {
+          setError("تعذر حفظ الحساب: " + saveError.message);
+        }
+        return;
+      }
+
       onComplete();
-    } catch {
-      setError("تعذر الاتصال بالخادم. تحقق من الإنترنت وحاول مرة أخرى.");
+    } catch (e) {
+      setError(e instanceof Error ? "تعذر حفظ الحساب: " + e.message : "تعذر حفظ الحساب. حاول مرة أخرى.");
     } finally {
       setBusy(false);
     }
