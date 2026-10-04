@@ -99,17 +99,46 @@ export default function VoiceRoomRoute() {
   async function handleMicrophoneRequest(requestId:string,accept:boolean){const client=supabase;if(!client)return;setHandlingRequest(requestId);setError("");try{const {data:decision,error:handleError}=await client.functions.invoke("room-microphone",{body:{requestId,accept}});if(handleError)throw handleError;if(decision?.error)throw new Error(String(decision.error));await loadRoom()}catch(e){setError(e instanceof Error?e.message:"تعذر معالجة طلب المايك")}finally{setHandlingRequest(null)}}
   async function requestMicrophone(){const client=supabase;if(!client||!room)return;setMicRequestBusy(true);setError("");try{const {error:requestError}=await client.rpc("jehoo_request_microphone",{p_room_id:room.id});if(requestError)throw requestError;setMicRequestSent(true)}catch(e){setError(e instanceof Error?e.message:"تعذر إرسال طلب المايك")}finally{setMicRequestBusy(false)}}
 
-  async function roomAction(action:string,targetId:string){const client=supabase;if(!client||actingUser)return;setActingUser(targetId);setError("");try{
-    if(action==="lower") await client.rpc("jehoo_lower_from_seat",{p_room_id:roomId,p_target_user_id:targetId});
-    if(action==="kick") await client.rpc("jehoo_kick_from_room",{p_room_id:roomId,p_target_user_id:targetId});
-    if(action==="mute") await client.rpc("jehoo_mute_room_member",{p_room_id:roomId,p_target_user_id:targetId,p_muted:true});
-    if(action==="ban") await client.rpc("jehoo_ban_from_room",{p_room_id:roomId,p_target_user_id:targetId,p_reason:"إدارة الغرفة"});
-    await loadRoom();
-  }catch(e){setError(e instanceof Error?e.message:"تعذر تنفيذ الإجراء")}finally{setActingUser(null)}}
+  async function roomAction(action:string,targetId:string){
+    const client=supabase;
+    if(!client||actingUser||!canModerate)return;
+    setActingUser(targetId);setError("");
+    try{
+      let result:{error: any};
+      if(action==="lower") result=await client.rpc("jehoo_lower_from_seat",{p_room_id:roomId,p_target_user_id:targetId});
+      else if(action==="kick") result=await client.rpc("jehoo_kick_from_room",{p_room_id:roomId,p_target_user_id:targetId});
+      else if(action==="mute") result=await client.rpc("jehoo_mute_room_member",{p_room_id:roomId,p_target_user_id:targetId,p_muted:true});
+      else if(action==="ban") result=await client.rpc("jehoo_ban_from_room",{p_room_id:roomId,p_target_user_id:targetId,p_reason:"إدارة الغرفة"});
+      else throw new Error("إجراء غير معروف");
+      if(result.error)throw result.error;
+      await loadRoom();
+    }catch(e){setError(e instanceof Error?e.message:"تعذر تنفيذ الإجراء")}
+    finally{setActingUser(null)}
+  }
   async function setRole(targetId:string,role:string){const client=supabase;if(!client)return;setActingUser(targetId);setError("");try{const {error}=await client.rpc("jehoo_set_room_role",{p_room_id:roomId,p_target_user_id:targetId,p_role:role});if(error)throw error;await loadRoom()}catch(e){setError(e instanceof Error?e.message:"تعذر تغيير الصلاحية")}finally{setActingUser(null)}}
 
-  async function changeRoomStatus(status:"active"|"locked"|"closed"){if(!isHost||!supabase)return;const {error:e}=await supabase.from("rooms").update({status}).eq("id",roomId).eq("owner_id",(await supabase.auth.getUser()).data.user?.id);if(e)setError(e.message);else await loadRoom()}
-async function unban(id:string){if(!supabase)return;const {error:e}=await supabase.from("room_bans").delete().eq("room_id",roomId).eq("user_id",id);if(e)setError(e.message);else await loadRoom()}
+  async function changeRoomStatus(status:"active"|"locked"|"closed"){
+    if(!isHost||!supabase)return;
+    setError("");
+    try{
+      const {data:{user},error:userError}=await supabase.auth.getUser();
+      if(userError)throw userError;
+      if(!user)throw new Error("انتهت الجلسة، سجّل الدخول مجدداً.");
+      const {error:statusError}=await supabase.from("rooms").update({status}).eq("id",roomId).eq("owner_id",user.id);
+      if(statusError)throw statusError;
+      await loadRoom();
+      if(status==="closed")router.replace("/");
+    }catch(e){setError(e instanceof Error?e.message:"تعذر تغيير حالة الغرفة")}
+  }
+  async function unban(id:string){
+    if(!isHost||!supabase)return;
+    setError("");
+    try{
+      const {error:unbanError}=await supabase.from("room_bans").delete().eq("room_id",roomId).eq("user_id",id);
+      if(unbanError)throw unbanError;
+      await loadRoom();
+    }catch(e){setError(e instanceof Error?e.message:"تعذر إلغاء الحظر")}
+  }
 function openMemberActions(targetId:string,name:string){
     if(!canModerate)return;
     const buttons=[{text:"إنزال من المقعد",onPress:()=>void roomAction("lower",targetId)},{text:"كتم",onPress:()=>void roomAction("mute",targetId)},{text:"إخراج من الروم",onPress:()=>void roomAction("kick",targetId)},{text:"حظر من الروم",style:"destructive" as const,onPress:()=>void roomAction("ban",targetId)}];
