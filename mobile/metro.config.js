@@ -9,7 +9,8 @@ config.resolver.nodeModulesPaths = [
   path.resolve(projectRoot, "node_modules"),
   path.resolve(workspaceRoot, "node_modules"),
 ];
-// Expo SDK 52 + Hermes can emit an undefined Metro module ID for some
-// conditional package exports (the LiveKit Web Streams shim is affected).
-config.resolver.unstable_enablePackageExports = false;
+
+// Keep Expo/Metro's default package-export resolution. Disabling package
+// exports can make Metro emit an undefined module ID for LiveKit's stream
+// polyfills under Hermes.
 module.exports = config;
