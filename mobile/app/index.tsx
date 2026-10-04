@@ -131,7 +131,7 @@ export default function HomeScreen() {
 
   return <SafeAreaView style={s.safe}>
     <View style={s.header}>
-      <View><Text style={s.brand}>JEHOO <Text style={s.mint}>●</Text> CHAT</Text><Text style={s.subtitle}>{copy.dashboardSubtitle}</Text></View>
+      <View><Text style={s.brand}>JEHOO <Text style={s.mint}>●</Text> CHAT</Text><Text style={s.subtitle}>{ar ? "مساحتك، صوتك، أصدقاؤك" : "Your space, your voice, your friends"}</Text></View>
       <Pressable style={s.language} onPress={() => setLocale(ar ? "en" : "ar")}><Text style={s.languageText}>{ar ? "English" : "العربية"}</Text></Pressable>
     </View>
     {!session ? <View style={s.hero}>
