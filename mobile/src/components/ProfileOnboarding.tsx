@@ -30,7 +30,7 @@ export default function ProfileOnboarding({ user, initialProfile, onComplete }: 
     if (firstName.trim().length < 2) return setError("اكتب الاسم الأول.");
     if (nickname.trim().length < 2) return setError("اكتب الكنية أو الاسم المستعار.");
     if (!gender) return setError("اختر الجنس.");
-    if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(birthDate)) return setError("اكتب تاريخ الميلاد بهذا الشكل: 2000-05-21");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) return setError("اكتب تاريخ الميلاد بهذا الشكل: 2000-05-21");
     if (!country) return setError("اختر البلد.");
     setBusy(true);
     const { error: saveError } = await supabase!.rpc("jehoo_complete_profile", {
