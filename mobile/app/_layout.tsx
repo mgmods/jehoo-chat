@@ -18,21 +18,22 @@ export default function RootLayout() {
   useEffect(() => {
     if (!supabase || !Device.isDevice) return;
     let active = true;
-    (async () => {
+    const register = async (userId: string) => {
       try {
         const permission = await Notifications.getPermissionsAsync();
         let status = permission.status;
         if (status !== "granted") status = (await Notifications.requestPermissionsAsync()).status;
         if (status !== "granted" || !active) return;
         const token = (await Notifications.getExpoPushTokenAsync()).data;
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user && active) await supabase.from("push_tokens").upsert({ user_id: user.id, expo_push_token: token, platform: "mobile", updated_at: new Date().toISOString() }, { onConflict: "expo_push_token" });
-        if (active) await Notifications.setNotificationChannelAsync("official", { name: "الرسائل الرسمية", importance: Notifications.AndroidImportance.MAX });
+        if (!active) return;
+        await supabase.from("push_tokens").upsert({ user_id: userId, expo_push_token: token, platform: "mobile", updated_at: new Date().toISOString() }, { onConflict: "expo_push_token" });
+        await Notifications.setNotificationChannelAsync("official", { name: "الرسائل الرسمية", importance: Notifications.AndroidImportance.MAX });
       } catch (error) { console.warn("Push registration failed", error); }
-    })();
-    return () => { active = false; };
+    };
+    void supabase.auth.getUser().then(({data}) => { if (data.user) void register(data.user.id); });
+    const {data:{subscription}}=supabase.auth.onAuthStateChange((_event,session)=>{ if(session?.user) void register(session.user.id); });
+    return () => { active = false; subscription.unsubscribe(); };
   }, []);
-
   useEffect(() => {
     if (!supabase) {
       setSplashLoading(false);
