@@ -42,7 +42,10 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.mgmods.jehoochat"
+      "bundleIdentifier": "com.mgmods.jehoochat",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "يحتاج JEHOO CHAT إلى الميكروفون للمحادثة الصوتية داخل الغرف."
+      }
     },
     "icon": "./assets/icon.jpg"
   }
