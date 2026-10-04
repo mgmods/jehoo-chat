@@ -76,7 +76,7 @@ export default function HomeScreen() {
       .select("id,owner_id,name,description,cover_url,status,is_featured,max_seats,password_enabled,created_at,owner:profiles!rooms_owner_id_fkey(display_name,avatar_url)")
       .neq("status", "closed").order("is_featured", { ascending: false }).order("created_at", { ascending: false }).limit(30);
     if (queryError) setError(queryError.message);
-    else setRooms((data ?? []) as Room[]);
+    else setRooms((data ?? []).map((room) => ({ ...room, owner: Array.isArray(room.owner) ? (room.owner[0] ?? null) : (room.owner ?? null) })) as Room[]);
     setLoading(false);
   }, [session]);
 
@@ -294,7 +294,7 @@ const s = StyleSheet.create({
   dropdown:{height:52,width:52,borderRadius:26,backgroundColor:"#FFFFFF",borderWidth:1,borderColor:"#E1E6E3",alignItems:"center",justifyContent:"center"},
   roomGrid:{flexDirection:"row",flexWrap:"wrap",columnGap:21,rowGap:17,marginHorizontal:20},
   room:{width:"48%",minWidth:0,height:405,overflow:"hidden",borderRadius:25,borderWidth:1,borderColor:"#E2E6E3",backgroundColor:"#FFFFFF",shadowColor:"#17251F",shadowOpacity:0.08,shadowRadius:10,elevation:2},
-  roomCover:{height:"74%",width:"100%",alignItems:"center",justifyContent:"center",position:"relative",overflow:"hidden",backgroundColor:"#D9E8E2"},roomCoverImage:{width:"100%",height:"100%"},roomArt:{width:"100%",height:"100%",alignItems:"center",justifyContent:"center"},ownerMini:{position:"absolute",left:10,bottom:10,right:10,flexDirection:"row",alignItems:"center",gap:6,backgroundColor:"rgba(0,0,0,0.35)",borderRadius:14,paddingHorizontal:7,paddingVertical:5},ownerAvatar:{width:24,height:24,borderRadius:12},ownerAvatarFallback:{width:24,height:24,borderRadius:12,backgroundColor:"#31D6B0",alignItems:"center",justifyContent:"center"},ownerAvatarText:{fontSize:11,fontWeight:"900",color:"#06251E"},ownerName:{flex:1,color:"#FFFFFF",fontSize:10,fontWeight:"800"},
+  roomCover:{height:"74%",width:"100%",alignItems:"center",justifyContent:"center",position:"relative",overflow:"hidden",backgroundColor:"#D9E8E2"},roomCoverShade:{position:"absolute",left:0,right:0,top:0,bottom:0,backgroundColor:"rgba(0,0,0,0.08)"},roomCoverTop:{position:"absolute",left:12,right:12,top:12,flexDirection:"row",alignItems:"center",justifyContent:"space-between"},roomCoverImage:{width:"100%",height:"100%"},roomArt:{width:"100%",height:"100%",alignItems:"center",justifyContent:"center"},ownerMini:{position:"absolute",left:10,bottom:10,right:10,flexDirection:"row",alignItems:"center",gap:6,backgroundColor:"rgba(0,0,0,0.35)",borderRadius:14,paddingHorizontal:7,paddingVertical:5},ownerAvatar:{width:24,height:24,borderRadius:12},ownerAvatarFallback:{width:24,height:24,borderRadius:12,backgroundColor:"#31D6B0",alignItems:"center",justifyContent:"center"},ownerAvatarText:{fontSize:11,fontWeight:"900",color:"#06251E"},ownerName:{flex:1,color:"#FFFFFF",fontSize:10,fontWeight:"800"},
   roomEmoji:{fontSize:42},
   roomCoverHint:{fontSize:11,color:"#FFFFFF",fontWeight:"900",marginTop:7},
   liveBadge:{position:"absolute",top:13,right:13,bottom:undefined,left:undefined,backgroundColor:"#FFFFFFDD",borderRadius:10,paddingHorizontal:8,paddingVertical:4},
