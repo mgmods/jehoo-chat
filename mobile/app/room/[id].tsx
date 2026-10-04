@@ -23,7 +23,7 @@ export default function VoiceRoomRoute() {
   const [liveRoom,setLiveRoom]=useState<Room|null>(null); const liveRoomRef=useRef<Room|null>(null); const joinAttemptRef=useRef(0);
   const [passwordModal,setPasswordModal]=useState(false), [joinPassword,setJoinPassword]=useState("");
   const [settingsName,setSettingsName]=useState(""), [settingsDescription,setSettingsDescription]=useState(""), [settingsCover,setSettingsCover]=useState(""), [settingsSeats,setSettingsSeats]=useState("10"), [settingsPasswordEnabled,setSettingsPasswordEnabled]=useState(false), [settingsPassword,setSettingsPassword]=useState(""), [settingsWelcome,setSettingsWelcome]=useState(""), [settingsBusy,setSettingsBusy]=useState(false);
-  const [isHost,setIsHost]=useState(false), [canModerate,setCanModerate]=useState(false), [micEnabled,setMicEnabled]=useState(true), [isRoomMember,setIsRoomMember]=useState(false);
+  const [isHost,setIsHost]=useState(false), [canModerate,setCanModerate]=useState(false), [micEnabled,setMicEnabled]=useState(true), [canSpeak,setCanSpeak]=useState(false), [isRoomMember,setIsRoomMember]=useState(false), [roomMemberCount,setRoomMemberCount]=useState(0);
   const [micRequestBusy,setMicRequestBusy]=useState(false), [micRequestSent,setMicRequestSent]=useState(false), [pendingMicRequests,setPendingMicRequests]=useState<MicRequestRow[]>([]);
   const [handlingRequest,setHandlingRequest]=useState<string|null>(null), [actingUser,setActingUser]=useState<string|null>(null); const [showAdmin,setShowAdmin]=useState(false), [members,setMembers]=useState<any[]>([]), [bans,setBans]=useState<any[]>([]), [showBans,setShowBans]=useState(false); const [roomTab,setRoomTab]=useState<"all"|"chat"|"gifts"|"enter">("all");
   const [conversationId,setConversationId]=useState<string|null>(null), [chatMessages,setChatMessages]=useState<any[]>([]), [chatDraft,setChatDraft]=useState(""), [chatBusy,setChatBusy]=useState(false);
@@ -38,7 +38,9 @@ export default function VoiceRoomRoute() {
     if(roomError||!roomData){setError(roomError?.message??"Room not found.");setLoading(false);return;}
     setRoom(roomData as RoomRow); const {data:owner}=await client.from("profiles").select("id,display_name,avatar_url,level,vip_level").eq("id",roomData.owner_id).maybeSingle(); setOwnerProfile(owner as ProfileRow|null); const {data:{user:viewer}}=await client.auth.getUser(); setCurrentUserId(viewer?.id??null); if(viewer&&viewer.id!==roomData.owner_id){const {data:follow}=await client.from("user_follows").select("id").eq("follower_id",viewer.id).eq("following_id",roomData.owner_id).maybeSingle();setFollowed(Boolean(follow));} setSettingsName(roomData.name); setSettingsDescription(roomData.description||""); setSettingsCover(roomData.cover_url||""); setSettingsSeats(String(roomData.max_seats||10)); setSettingsPasswordEnabled(Boolean(roomData.password_enabled)); setSettingsWelcome(roomData.welcome_message||"");
     const {data:roomPeople}=await client.from("room_members").select("user_id").eq("room_id",roomId);
-    const recipientIds=[...new Set([...(roomPeople??[]).map(person=>person.user_id),roomData.owner_id].filter(id=>id&&id!==viewer?.id))];
+    const activeRoomMemberIds=[...new Set([...(roomPeople??[]).map(person=>person.user_id),roomData.owner_id].filter(Boolean))];
+    setRoomMemberCount(activeRoomMemberIds.length);
+    const recipientIds=activeRoomMemberIds.filter(id=>id!==viewer?.id);
     if(recipientIds.length){const {data:recipientProfiles}=await client.from("profiles").select("id,display_name").in("id",recipientIds);const recipientMap:Record<string,string>={};(recipientProfiles??[]).forEach(person=>recipientMap[person.id]=person.display_name||"عضو");setGiftRecipients(recipientIds.map(id=>({id,name:recipientMap[id]||"عضو"})));}else setGiftRecipients([]);
     const {data:seatData,error:seatError}=await client.from("room_seats").select("room_id,seat_number,status,user_id,reserved_for").eq("room_id",roomId).order("seat_number");
     if(seatError){setError(seatError.message);setLoading(false);return;}
@@ -49,10 +51,11 @@ export default function VoiceRoomRoute() {
     let moderator=false;let memberRole="listener";let memberMuted=false;
     if(user&&!host){const {data:member}=await client.from("room_members").select("room_role,muted").eq("room_id",roomId).eq("user_id",user.id).maybeSingle();memberRole=member?.room_role??"listener";memberMuted=Boolean(member?.muted);setIsRoomMember(Boolean(member));moderator=["co_host","moderator"].includes(memberRole);}else setIsRoomMember(host);
     setCanModerate(host||moderator);
+    setCanSpeak(Boolean((host||["co_host","moderator","speaker"].includes(memberRole))&&!memberMuted));
     if(host||moderator){const [{data:membersData},{data:bansData}]=await Promise.all([client.from("room_members").select("user_id,room_role,muted,profiles(display_name)").eq("room_id",roomId).order("room_role"),client.from("room_bans").select("user_id,reason,created_at,profiles(display_name)").eq("room_id",roomId).order("created_at",{ascending:false})]);setMembers(membersData??[]);setBans(bansData??[]);const {data:requests}=await client.from("room_requests").select("id,user_id,created_at,profiles(display_name)").eq("room_id",roomId).eq("request_type","microphone").eq("status","pending").order("created_at",{ascending:true});setPendingMicRequests((requests??[]) as unknown as MicRequestRow[]);}else {setPendingMicRequests([]);setMembers([]);setBans([]);}
     if(user&&liveRoom){
       const {data:latestRequest}=await client.from("room_requests").select("status").eq("room_id",roomId).eq("user_id",user.id).eq("request_type","microphone").order("created_at",{ascending:false}).limit(1).maybeSingle();
-      if(memberMuted||(!host&&!["co_host","moderator","speaker"].includes(memberRole))){try{await liveRoom.localParticipant.setMicrophoneEnabled(false);setMicEnabled(false)}catch{}}else if(latestRequest?.status==="accepted"){try{await liveRoom.localParticipant.setMicrophoneEnabled(true);setMicEnabled(true);setMicRequestSent(false)}catch(e){setError(e instanceof Error?e.message:"تمت الموافقة على المايك لكن تعذر تفعيله. جارٍ إعادة المحاولة.");setTimeout(async()=>{if(liveRoomRef.current!==liveRoom)return;try{await liveRoom.localParticipant.setMicrophoneEnabled(true);setMicEnabled(true);setMicRequestSent(false);setError("")}catch{}},1200)}}
+      if(memberMuted||(!host&&!["co_host","moderator","speaker"].includes(memberRole))){try{await liveRoom.localParticipant.setMicrophoneEnabled(false);setMicEnabled(false)}catch{}}else if(latestRequest?.status==="accepted"){try{await liveRoom.localParticipant.setMicrophoneEnabled(true);setMicEnabled(true);setCanSpeak(true);setMicRequestSent(false)}catch(e){setError(e instanceof Error?e.message:"تمت الموافقة على المايك لكن تعذر تفعيله. جارٍ إعادة المحاولة.");setTimeout(async()=>{if(liveRoomRef.current!==liveRoom)return;try{await liveRoom.localParticipant.setMicrophoneEnabled(true);setMicEnabled(true);setCanSpeak(true);setMicRequestSent(false);setError("")}catch{}},1200)}}
     }
     setLoading(false);
   },[roomId,liveRoom]);
@@ -84,9 +87,9 @@ export default function VoiceRoomRoute() {
             const {data:member,error:memberError}=await client.from("conversation_members").select("joined_at").eq("conversation_id",String(convId)).eq("user_id",user.id).maybeSingle();
             if(memberError)throw memberError;
             if(!member?.joined_at)return;
-            const {data:rows,error:messagesError}=await client.from("messages").select("id,conversation_id,sender_id,message_type,body,created_at").eq("conversation_id",String(convId)).is("deleted_at",null).gt("created_at",member.joined_at).order("created_at",{ascending:true}).limit(100);
+            const {data:rows,error:messagesError}=await client.from("messages").select("id,conversation_id,sender_id,message_type,body,created_at").eq("conversation_id",String(convId)).is("deleted_at",null).gt("created_at",member.joined_at).order("created_at",{ascending:false}).limit(100);
             if(messagesError)throw messagesError;
-            const items=(rows??[]) as any[];
+            const items=((rows??[]) as any[]).reverse();
             if(items.length){
               const ids=[...new Set(items.map(m=>m.sender_id))];
               const {data:people}=await client.from("profiles").select("id,display_name,avatar_url").in("id",ids);
@@ -107,7 +110,7 @@ export default function VoiceRoomRoute() {
     void loadGifts();return()=>{active=false};
   },[roomId,roomTab]);
   async function sendRoomGift(giftKey:string){
-    if(!supabase||!roomId||!selectedRecipient||giftBusy)return;setGiftBusy(true);setError("");
+    if(!supabase||!roomId||!selectedRecipient||giftBusy)return;if(!isRoomParticipant){setError("انضم إلى الغرفة أولاً لإرسال هدية.");return;}setGiftBusy(true);setError("");
     try{const idempotencyKey="roomgift-"+Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,12);
       const {data,error:giftError}=await supabase.rpc("jehoo_send_room_gift",{p_room_id:roomId,p_recipient_id:selectedRecipient,p_gift_key:giftKey,p_idempotency_key:idempotencyKey});
       if(giftError)throw giftError;
@@ -155,6 +158,7 @@ export default function VoiceRoomRoute() {
       await pendingRoom.connect(data.serverUrl,data.participantToken,{});
       if(attempt!==joinAttemptRef.current){try{await pendingRoom.disconnect()}catch{}pendingRoom=null;await AudioSession.stopAudioSession().catch(()=>undefined);await client.rpc("jehoo_leave_room",{p_room_id:room.id});return;}
       const canPublish=Boolean(data.canPublish);
+      setCanSpeak(canPublish);
       let microphoneStarted=false;
       if(canPublish){
         try{await pendingRoom.localParticipant.setMicrophoneEnabled(true);microphoneStarted=true;}
@@ -167,7 +171,7 @@ export default function VoiceRoomRoute() {
       connectedRoom.on(RoomEvent.Disconnected,()=>{
         if(liveRoomRef.current!==connectedRoom)return;
         liveRoomRef.current=null;
-        setLiveRoom(null);setLive(null);setMicEnabled(false);setChatMessages([]);setConversationId(null);
+        setLiveRoom(null);setLive(null);setMicEnabled(false);setCanSpeak(false);setChatMessages([]);setConversationId(null);
         void AudioSession.stopAudioSession().catch(()=>undefined);
         void client.rpc("jehoo_leave_room",{p_room_id:room.id}).then(({error:leaveError})=>{
           if(leaveError)setError(leaveError.message);
@@ -207,7 +211,7 @@ export default function VoiceRoomRoute() {
     // Clear the ref before disconnecting so the Disconnected listener won't duplicate cleanup.
     liveRoomRef.current=null;
     try{await activeRoom?.disconnect()}catch{}
-    setLiveRoom(null);setLive(null);setMicEnabled(false);
+    setLiveRoom(null);setLive(null);setMicEnabled(false);setCanSpeak(false);
     await AudioSession.stopAudioSession().catch(()=>undefined);
     if(client&&room){
       const {error:leaveError}=await client.rpc("jehoo_leave_room",{p_room_id:room.id});
@@ -326,7 +330,7 @@ function openMemberActions(targetId:string,name:string){
             <View style={s.ownerText}><Text style={s.ownerName} numberOfLines={1}>{ownerProfile?.display_name||"مالك الغرفة"}</Text><Text style={s.ownerId}>ID: {ownerProfile?.id?.slice(0,8)??"—"}</Text></View>
             {currentUserId&&currentUserId!==room?.owner_id?<Pressable onPress={()=>void toggleFollow()} style={s.follow}><Text style={s.followText}>{followed?"متابَع":"متابعة"}</Text></Pressable>:null}
           </View>
-          <View style={s.onlinePill}><Text style={s.onlineText}>👤 {seats.filter(x=>x.status==="occupied").length}</Text></View>
+          <View style={s.onlinePill}><Text style={s.onlineText}>👤 {roomMemberCount}</Text></View>
           <View style={s.roomTitleBlock}><Text style={s.roomTitle}>{room?.name}</Text><Text style={s.roomSubtitle}>{room?.status==="locked"?"🔒 غرفة مقفلة":room?.description||"غرفة صوتية اجتماعية"}</Text></View>
         </View>
 
@@ -356,15 +360,15 @@ function openMemberActions(targetId:string,name:string){
 
         {error?<Text style={s.error}>{error}</Text>:null}
 
-        {live?<View style={s.voiceBar}><View><Text style={s.voiceTitle}>🎙 الصوت مباشر</Text><Text style={s.voiceSub}>{micEnabled?"الميكروفون مفتوح":"الميكروفون مكتوم"}</Text></View><Pressable onPress={async()=>{const next=!micEnabled;try{await liveRoom?.localParticipant.setMicrophoneEnabled(next);setMicEnabled(next)}catch(e){setError(e instanceof Error?e.message:"تعذر التحكم بالمايك")}}} style={s.micToggle}><Text style={s.micToggleText}>{micEnabled?"🔊":"🔇"}</Text></Pressable><Pressable onPress={()=>void leaveVoice()} style={s.leaveVoice}><Text style={s.leaveVoiceText}>مغادرة</Text></Pressable></View>:null}
+        {live?<View style={s.voiceBar}><View><Text style={s.voiceTitle}>🎙 الصوت مباشر</Text><Text style={s.voiceSub}>{canSpeak?(micEnabled?"الميكروفون مفتوح":"الميكروفون مكتوم"):"أنت مستمع حالياً"}</Text></View>{canSpeak?<Pressable onPress={async()=>{const next=!micEnabled;try{await liveRoom?.localParticipant.setMicrophoneEnabled(next);setMicEnabled(next)}catch(e){setError(e instanceof Error?e.message:"تعذر التحكم بالمايك")}}} style={s.micToggle}><Text style={s.micToggleText}>{micEnabled?"🔊":"🔇"}</Text></Pressable>:<Pressable disabled={micRequestBusy||micRequestSent} onPress={()=>void requestMicrophone()} style={s.micToggle}><Text style={s.micToggleText}>{micRequestSent?"تم إرسال الطلب":micRequestBusy?"جارٍ الإرسال...":"طلب المايك"}</Text></Pressable>}<Pressable onPress={()=>void leaveVoice()} style={s.leaveVoice}><Text style={s.leaveVoiceText}>مغادرة</Text></Pressable></View>:null}
 
         <View style={s.roomTabs}>
           {([{id:"all",label:"الكل",icon:"⌂"},{id:"chat",label:"دردشة",icon:"💬"},{id:"gifts",label:"هدية",icon:"🎁"},{id:"enter",label:"ادخل",icon:"🎙"}] as const).map(tab=><Pressable key={tab.id} onPress={()=>{setRoomTab(tab.id);if(tab.id==="enter"&&!live)void joinVoice();}} style={[s.roomTab,roomTab===tab.id&&s.roomTabActive]}><Text style={[s.roomTabIcon,roomTab===tab.id&&s.roomTabTextActive]}>{tab.icon}</Text><Text style={[s.roomTabText,roomTab===tab.id&&s.roomTabTextActive]}>{tab.label}</Text></Pressable>)}
         </View>
 
         {roomTab==="chat"?<View style={s.tabNotice}><Text style={s.tabNoticeTitle}>دردشة الغرفة</Text>{!isRoomParticipant?<Text style={s.tabNoticeText}>انضم إلى الغرفة أولاً حتى تقدر ترسل وتستقبل رسائلها.</Text>:null}<ScrollView style={s.chatList} nestedScrollEnabled contentContainerStyle={{gap:8}}>{chatMessages.map((m:any)=><View key={m.id} style={s.chatBubble}><Text style={s.chatSender}>{m.profiles?.display_name||"مستخدم"}</Text><Text style={s.chatBody}>{m.body}</Text></View>)}</ScrollView><View style={s.chatComposer}><TextInput value={chatDraft} onChangeText={setChatDraft} placeholder="اكتب رسالتك..." placeholderTextColor="#82A99D" maxLength={1000} style={s.chatInput}/><Pressable disabled={!chatDraft.trim()||chatBusy||!conversationId} onPress={()=>void sendRoomMessage()} style={s.chatSend}><Text style={s.chatSendText}>إرسال</Text></Pressable></View></View>
-        :roomTab==="gifts"?<View style={s.tabNotice}><Text style={s.tabNoticeTitle}>🎁 الهدايا</Text><Text style={s.giftBalance}>رصيدك: {walletCoins===null?"—":walletCoins.toLocaleString()} عملة</Text>{giftRecipients.length===0?<Text style={s.tabNoticeText}>لا يوجد عضو آخر في الغرفة لإرسال هدية إليه حالياً.</Text>:null}<ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.giftChoices}>{giftRecipients.map(person=><Pressable key={person.id} onPress={()=>setSelectedRecipient(person.id)} style={[s.giftRecipient,selectedRecipient===person.id&&s.giftRecipientActive]}><Text style={s.giftRecipientText}>{person.name}</Text></Pressable>)}</ScrollView><View style={s.giftChoices}>{giftCatalog.map(g=><Pressable key={g.gift_key} disabled={!selectedRecipient||giftBusy} onPress={()=>void sendRoomGift(g.gift_key)} style={s.giftCard}><Text style={s.giftEmoji}>{g.emoji}</Text><Text style={s.giftTitle}>{g.title}</Text><Text style={s.giftPrice}>{g.price}</Text></Pressable>)}</View></View>
-        :roomTab==="enter"?<View style={s.tabNotice}><Text style={s.tabNoticeTitle}>🎙 الدخول للصوت</Text><Text style={s.tabNoticeText}>ادخل للغرفة وفعّل المايك للتحدث مع الموجودين.</Text><Pressable onPress={()=>live?void requestMicrophone():void joinVoice()} style={s.primary}><Text style={s.primaryText}>{live?"طلب المايك":"الانضمام للصوت"}</Text></Pressable></View>:null}
+        :roomTab==="gifts"?<View style={s.tabNotice}><Text style={s.tabNoticeTitle}>🎁 الهدايا</Text><Text style={s.giftBalance}>رصيدك: {walletCoins===null?"—":walletCoins.toLocaleString()} عملة</Text>{!isRoomParticipant?<Text style={s.tabNoticeText}>انضم إلى الغرفة أولاً حتى تتمكن من إرسال الهدايا.</Text>:null}{giftRecipients.length===0?<Text style={s.tabNoticeText}>لا يوجد عضو آخر في الغرفة لإرسال هدية إليه حالياً.</Text>:null}<ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.giftChoices}>{giftRecipients.map(person=><Pressable key={person.id} onPress={()=>setSelectedRecipient(person.id)} style={[s.giftRecipient,selectedRecipient===person.id&&s.giftRecipientActive]}><Text style={s.giftRecipientText}>{person.name}</Text></Pressable>)}</ScrollView><View style={s.giftChoices}>{giftCatalog.map(g=><Pressable key={g.gift_key} disabled={!isRoomParticipant||!selectedRecipient||giftBusy} onPress={()=>void sendRoomGift(g.gift_key)} style={s.giftCard}><Text style={s.giftEmoji}>{g.emoji}</Text><Text style={s.giftTitle}>{g.title}</Text><Text style={s.giftPrice}>{g.price}</Text></Pressable>)}</View></View>
+        :roomTab==="enter"?<View style={s.tabNotice}><Text style={s.tabNoticeTitle}>🎙 الدخول للصوت</Text><Text style={s.tabNoticeText}>ادخل للغرفة وفعّل المايك للتحدث مع الموجودين.</Text><Pressable disabled={busy||(live&&(canSpeak||micRequestBusy||micRequestSent))} onPress={()=>live?void requestMicrophone():void joinVoice()} style={s.primary}><Text style={s.primaryText}>{live?(canSpeak?"الميكروفون متاح":micRequestSent?"تم إرسال طلب المايك":micRequestBusy?"جارٍ إرسال الطلب...":"طلب المايك"):(busy?"جارٍ الاتصال...":"الانضمام للصوت")}</Text></Pressable></View>:null}
 
         {canModerate?<View style={s.adminPanel}><Pressable style={s.adminHead} onPress={()=>setShowAdmin(v=>!v)}><View><Text style={s.adminTitle}>⚙️ إعدادات الغرفة</Text><Text style={s.adminSub}>الاسم · المقاعد · كلمة السر · الرسالة</Text></View><Text style={s.chevron}>{showAdmin?"⌃":"⌄"}</Text></Pressable>{showAdmin?<View style={s.adminBody}><TextInput value={settingsName} onChangeText={setSettingsName} placeholder="اسم الغرفة" placeholderTextColor="#718096" style={s.adminInput}/><TextInput value={settingsDescription} onChangeText={setSettingsDescription} placeholder="وصف الغرفة" placeholderTextColor="#718096" style={s.adminInput}/><View style={s.coverRow}>{settingsCover?<Image source={{uri:settingsCover}} style={s.coverPreview}/>:<Text style={s.coverEmpty}>لا يوجد غلاف</Text>}<Pressable onPress={()=>void pickRoomCover()} style={s.coverButton}><Text style={s.coverButtonText}>تغيير الغلاف</Text></Pressable></View><TextInput value={settingsSeats} onChangeText={setSettingsSeats} keyboardType="number-pad" placeholder="عدد المقاعد (1-10)" placeholderTextColor="#718096" style={s.adminInput}/><Pressable onPress={()=>setSettingsPasswordEnabled(v=>!v)} style={s.settingToggle}><Text style={s.settingToggleText}>{settingsPasswordEnabled?"🔒 كلمة السر مفعلة":"🔓 كلمة السر غير مفعلة"}</Text></Pressable>{settingsPasswordEnabled?<TextInput value={settingsPassword} onChangeText={setSettingsPassword} secureTextEntry placeholder="كلمة سر جديدة" placeholderTextColor="#718096" style={s.adminInput}/>:null}<TextInput value={settingsWelcome} onChangeText={setSettingsWelcome} placeholder="رسالة الترحيب" placeholderTextColor="#718096" multiline style={[s.adminInput,{minHeight:70}]}/><View style={s.statusRow}><Pressable onPress={()=>void changeRoomStatus("active")} style={s.statusButton}><Text style={s.statusText}>فتح</Text></Pressable><Pressable onPress={()=>void changeRoomStatus("locked")} style={s.statusButton}><Text style={s.statusText}>قفل</Text></Pressable><Pressable onPress={()=>Alert.alert("إغلاق الغرفة","هل أنت متأكد؟",[ {text:"إلغاء",style:"cancel"},{text:"إغلاق",style:"destructive",onPress:()=>void changeRoomStatus("closed")} ])} style={[s.statusButton,{backgroundColor:"#5A2830"}]}><Text style={s.statusText}>إغلاق</Text></Pressable></View><Pressable disabled={settingsBusy} onPress={()=>void saveRoomSettings()} style={s.saveSettings}>{settingsBusy?<ActivityIndicator color="#06251E"/>:<Text style={s.saveSettingsText}>حفظ التعديلات</Text>}</Pressable></View>:null}</View>:null}
       </ScrollView>
