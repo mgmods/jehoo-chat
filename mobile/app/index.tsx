@@ -140,7 +140,13 @@ export default function HomeScreen() {
     } finally { setCreateBusy(false); }
   }
 
-  async function refreshProfile() {\n    if (!supabase || !session?.user) return;\n    const { data } = await supabase.from("profiles").select("id,first_name,nickname,gender,birth_date,country,avatar_url,profile_completed").eq("id", session.user.id).maybeSingle();\n    setProfile(data);\n  }\n\n  async function signOut() {
+  async function refreshProfile() {
+    if (!supabase || !session?.user) return;
+    const { data } = await supabase.from("profiles").select("id,first_name,nickname,gender,birth_date,country,avatar_url,profile_completed").eq("id", session.user.id).maybeSingle();
+    setProfile(data);
+  }
+
+  async function signOut() {
     const client = supabase;
     if (!client) return;
     const { error: signOutError } = await client.auth.signOut();
