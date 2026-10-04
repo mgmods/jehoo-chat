@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ActivityIndicator, FlatList, Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, FlatList, Image, KeyboardAvoidingView, Modal, Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { supabase } from "@/lib/supabase";
 import * as ImagePicker from "expo-image-picker";
@@ -149,7 +149,7 @@ export default function ProfileOnboarding({ user, initialProfile, onComplete, on
   }
 
   return (
-    <KeyboardAvoidingView style={s.keyboard} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+    <SafeAreaView style={s.safe}><KeyboardAvoidingView style={s.keyboard} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <View style={s.screen}>
         <ScrollView style={s.scroll} contentContainerStyle={s.page} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           <View style={s.hero}>
@@ -244,11 +244,12 @@ export default function ProfileOnboarding({ user, initialProfile, onComplete, on
           </View></View>
         </Modal>
       </View>
-    </KeyboardAvoidingView>
+    </KeyboardAvoidingView></SafeAreaView>
   );
 }
 
 const s = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: "#FFFFFF" },
   keyboard: { flex: 1, backgroundColor: "#FFFFFF" },
   screen: { flex: 1, backgroundColor: "#FFFFFF" },
   scroll: { flex: 1, backgroundColor: "#FFFFFF" },
