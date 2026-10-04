@@ -70,12 +70,29 @@ export default function VoiceRoomRoute() {
         if(convError)throw convError;
         if(!active)return;
         setConversationId(convId as string);
-        // Room chat is session-scoped: never fetch older messages from previous visits.
+        // Subscribe first, then load only this visit's messages to cover reconnects and the subscribe race.
         channel=client.channel("room-chat-"+String(convId)).on("postgres_changes",{event:"INSERT",schema:"public",table:"messages",filter:"conversation_id=eq."+String(convId)},async(payload)=>{
           const row=payload.new as any;
           const {data:profile}=await client.from("profiles").select("id,display_name,avatar_url").eq("id",row.sender_id).maybeSingle();
           if(active)setChatMessages(prev=>prev.some(m=>m.id===row.id)?prev:[...prev,{...row,profiles:profile}]);
-        }).subscribe();
+        }).subscribe(async(status)=>{
+          if(status!=="SUBSCRIBED"||!active)return;
+          try{
+            const {data:member,error:memberError}=await client.from("conversation_members").select("joined_at").eq("conversation_id",String(convId)).maybeSingle();
+            if(memberError)throw memberError;
+            if(!member?.joined_at)return;
+            const {data:rows,error:messagesError}=await client.from("messages").select("id,conversation_id,sender_id,message_type,body,created_at").eq("conversation_id",String(convId)).is("deleted_at",null).gte("created_at",member.joined_at).order("created_at",{ascending:true}).limit(100);
+            if(messagesError)throw messagesError;
+            const items=(rows??[]) as any[];
+            if(items.length){
+              const ids=[...new Set(items.map(m=>m.sender_id))];
+              const {data:people}=await client.from("profiles").select("id,display_name,avatar_url").in("id",ids);
+              const byId:Record<string,any>={};(people??[]).forEach(p=>byId[p.id]=p);
+              items.forEach(m=>m.profiles=byId[m.sender_id]);
+            }
+            if(active)setChatMessages(prev=>{const byId=new Map(prev.map(m=>[m.id,m]));items.forEach(m=>byId.set(m.id,m));return [...byId.values()].sort((a,b)=>a.created_at.localeCompare(b.created_at));});
+          }catch(e){if(active)setError(e instanceof Error?e.message:"تعذر مزامنة رسائل الغرفة");}
+        });
       }catch(e){if(active)setError(e instanceof Error?e.message:"تعذر فتح دردشة الغرفة");}
       finally{if(active)setChatBusy(false);}
     };
