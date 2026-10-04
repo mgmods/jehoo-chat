@@ -11,6 +11,8 @@ type SeatRow = { room_id:string; seat_number:number; status:"empty"|"occupied"|"
 type ProfileRow = { id:string; display_name:string; avatar_url:string; level:number; vip_level:number };
 type MicRequestRow = { id:string; user_id:string; created_at:string; profiles?:{display_name:string}|null };
 
+let liveKitGlobalsRegistered = false;
+async function ensureLiveKitGlobals() { const { registerGlobals } = await import("@livekit/react-native"); if (!liveKitGlobalsRegistered) { registerGlobals(); liveKitGlobalsRegistered = true; } }
 async function startLiveKitAudioSession() { const { AudioSession } = await import("@livekit/react-native"); await AudioSession.startAudioSession(); }
 async function stopLiveKitAudioSession() { const { AudioSession } = await import("@livekit/react-native"); await AudioSession.stopAudioSession(); }
 
@@ -146,7 +148,7 @@ export default function VoiceRoomRoute() {
     try{
       // Load native WebRTC/LiveKit only after the user explicitly enters voice.
       // This keeps the Expo Router startup path free of the Web Streams shim crash.
-      const {Room,RoomEvent}=await import("livekit-client");
+      await ensureLiveKitGlobals();\n      const {Room,RoomEvent}=await import("livekit-client");
       const {error:joinError}=await client.rpc("jehoo_join_room",{p_room_id:room.id,p_password:password??null});
       if(joinError){
         if(String(joinError.message||"").includes("ROOM_PASSWORD_REQUIRED")){setPasswordModal(true);return;}
