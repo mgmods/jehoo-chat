@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import { ActivityIndicator, FlatList, Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { supabase } from "@/lib/supabase";
@@ -10,13 +10,13 @@ type Props = {
   user: any;
   initialProfile?: any;
   onComplete: () => void;
-  onToggleLanguage: () => void;
+  onToggleLanguage?: () => void;
 };
 
 export default function ProfileOnboarding({ user, initialProfile, onComplete, onToggleLanguage }: Props) {
   const googleName = user?.user_metadata?.full_name || user?.user_metadata?.name || "";
   const googleAvatar = user?.user_metadata?.avatar_url || user?.user_metadata?.picture || "";
-  const [firstName, setFirstName] = useState(initialProfile?.first_name || googleName.split(" ")[0] || "");
+  const [firstName] = useState(initialProfile?.first_name || googleName.split(" ")[0] || "");
   const [nickname, setNickname] = useState(initialProfile?.nickname || "");
   const [gender, setGender] = useState<"male" | "female" | "">(initialProfile?.gender || "");
   const [birthDate, setBirthDate] = useState(initialProfile?.birth_date || "");
@@ -195,7 +195,7 @@ export default function ProfileOnboarding({ user, initialProfile, onComplete, on
             </Pressable>
           </View>
 
-          <Pressable onPress={onToggleLanguage} style={s.languageButton}>
+          <Pressable onPress={() => onToggleLanguage?.()} style={s.languageButton}>
             <Ionicons name="language-outline" size={18} color="#9A9A9A" />
             <Text style={s.languageText}>العربية</Text>
           </Pressable>
