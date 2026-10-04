@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { ActivityIndicator, FlatList, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { supabase } from "@/lib/supabase";
+import * as ImagePicker from "expo-image-picker";
 import { COUNTRIES } from "@/data/countries";
 
 type Props = {
@@ -18,6 +19,28 @@ export default function ProfileOnboarding({ user, initialProfile, onComplete }: 
   const [birthDate, setBirthDate] = useState(initialProfile?.birth_date || "");
   const [country, setCountry] = useState(initialProfile?.country || "SY");
   const [avatarUrl, setAvatarUrl] = useState(initialProfile?.avatar_url || googleAvatar);
+  const [avatarBusy, setAvatarBusy] = useState(false);
+
+  async function chooseAvatar() {
+    setError("");
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], allowsEditing: true, aspect: [1, 1], quality: 0.85 });
+      if (result.canceled || !result.assets?.[0]) return;
+      const asset = result.assets[0];
+      const client = supabase;
+      if (!client || !user?.id) { setError("سجّل الدخول أولاً لاختيار الصورة."); return; }
+      setAvatarBusy(true);
+      const response = await fetch(asset.uri);
+      const blob = await response.blob();
+      const ext = (asset.fileName?.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+      const path = `${user.id}/avatar-${Date.now()}.${ext}`;
+      const { error: uploadError } = await client.storage.from("avatars").upload(path, blob, { upsert: true, contentType: asset.mimeType || "image/jpeg" });
+      if (uploadError) throw uploadError;
+      const { data } = client.storage.from("avatars").getPublicUrl(path);
+      setAvatarUrl(data.publicUrl);
+    } catch (e) { setError(e instanceof Error ? `تعذر رفع الصورة: ${e.message}` : "تعذر رفع الصورة. حاول مرة أخرى."); }
+    finally { setAvatarBusy(false); }
+  }
   const [countryOpen, setCountryOpen] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -72,8 +95,10 @@ export default function ProfileOnboarding({ user, initialProfile, onComplete }: 
 
     <View style={s.avatarWrap}>
       {avatarUrl ? <Image source={{ uri: avatarUrl }} style={s.avatar} /> : <View style={[s.avatar, s.avatarEmpty]}><Text style={s.avatarEmoji}>🙂</Text></View>}
-      <Text style={s.avatarLabel}>الصورة الشخصية اختيارية</Text>
-      {googleAvatar ? <Pressable onPress={() => setAvatarUrl(avatarUrl ? "" : googleAvatar)}><Text style={s.avatarAction}>{avatarUrl ? "إزالة الصورة" : "استخدام صورة Google"}</Text></Pressable> : null}
+      <Text style={s.avatarLabel}>صورتك الشخصية (اختيارية)</Text>
+      <Pressable disabled={avatarBusy} onPress={() => void chooseAvatar()} style={s.avatarButton}><Text style={s.avatarAction}>{avatarBusy ? "جارٍ رفع الصورة…" : "اختيار صورة من الاستوديو وقصّها"}</Text></Pressable>
+      {googleAvatar ? <Pressable onPress={() => setAvatarUrl(googleAvatar)}><Text style={s.avatarAction}>استخدام صورة Google</Text></Pressable> : null}
+      {avatarUrl && avatarUrl !== googleAvatar ? <Pressable onPress={() => setAvatarUrl(googleAvatar || "")}><Text style={s.avatarRemove}>إزالة الصورة المخصصة</Text></Pressable> : null}
     </View>
 
     <View style={s.card}>
@@ -124,6 +149,8 @@ const s = StyleSheet.create({
   avatar:{width:82,height:82,borderRadius:41,borderWidth:2,borderColor:"#31D6B0"},
   avatarEmpty:{backgroundColor:"#121B25",alignItems:"center",justifyContent:"center"},
   avatarEmoji:{fontSize:34},
+  avatarButton:{marginTop:8,borderWidth:1,borderColor:"#31D6B0",borderRadius:12,paddingVertical:10,paddingHorizontal:14},
+  avatarRemove:{color:"#FDA4AF",fontSize:12,fontWeight:"800",marginTop:8},
   avatarLabel:{color:"#94A3B8",fontSize:11,marginTop:7},
   avatarAction:{color:"#31D6B0",fontWeight:"800",fontSize:12,marginTop:5},
   card:{backgroundColor:"#121B25",borderWidth:1,borderColor:"#263342",borderRadius:22,padding:18,paddingBottom:22},
