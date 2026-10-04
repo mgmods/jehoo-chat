@@ -20,7 +20,7 @@ export default function VoiceRoomRoute() {
   const [room,setRoom]=useState<RoomRow|null>(null), [seats,setSeats]=useState<SeatRow[]>([]), [profiles,setProfiles]=useState<Record<string,ProfileRow>>({});
   const [ownerProfile,setOwnerProfile]=useState<ProfileRow|null>(null), [followed,setFollowed]=useState(false), [currentUserId,setCurrentUserId]=useState<string|null>(null);
   const [loading,setLoading]=useState(true), [busy,setBusy]=useState(false), [live,setLive]=useState<{url:string;token:string}|null>(null), [error,setError]=useState("");
-  const [liveRoom,setLiveRoom]=useState<Room|null>(null); const liveRoomRef=useRef<Room|null>(null);
+  const [liveRoom,setLiveRoom]=useState<Room|null>(null); const liveRoomRef=useRef<Room|null>(null); const joinAttemptRef=useRef(0);
   const [passwordModal,setPasswordModal]=useState(false), [joinPassword,setJoinPassword]=useState("");
   const [settingsName,setSettingsName]=useState(""), [settingsDescription,setSettingsDescription]=useState(""), [settingsCover,setSettingsCover]=useState(""), [settingsSeats,setSettingsSeats]=useState("10"), [settingsPasswordEnabled,setSettingsPasswordEnabled]=useState(false), [settingsPassword,setSettingsPassword]=useState(""), [settingsWelcome,setSettingsWelcome]=useState(""), [settingsBusy,setSettingsBusy]=useState(false);
   const [isHost,setIsHost]=useState(false), [canModerate,setCanModerate]=useState(false), [micEnabled,setMicEnabled]=useState(true);
@@ -125,13 +125,14 @@ export default function VoiceRoomRoute() {
 
   useEffect(()=>{const client=supabase;if(!client||!roomId)return;const channel=client.channel("room-live-"+roomId).on("postgres_changes",{event:"*",schema:"public",table:"rooms",filter:"id=eq."+roomId},()=>void loadRoom()).on("postgres_changes",{event:"*",schema:"public",table:"room_seats",filter:"room_id=eq."+roomId},()=>void loadRoom()).on("postgres_changes",{event:"*",schema:"public",table:"room_requests",filter:"room_id=eq."+roomId},()=>void loadRoom()).on("postgres_changes",{event:"*",schema:"public",table:"room_members",filter:"room_id=eq."+roomId},()=>void loadRoom()).subscribe();return()=>{void client.removeChannel(channel)}},[roomId,loadRoom]);
 
-  useEffect(()=>()=>{const roomInstance=liveRoomRef.current;liveRoomRef.current=null;if(roomInstance){void roomInstance.disconnect();}void AudioSession.stopAudioSession().catch(()=>undefined);const client=supabase;if(client&&roomId)void client.rpc("jehoo_leave_room",{p_room_id:roomId});},[roomId]);
+  useEffect(()=>()=>{joinAttemptRef.current+=1;const roomInstance=liveRoomRef.current;liveRoomRef.current=null;if(roomInstance){void roomInstance.disconnect();}void AudioSession.stopAudioSession().catch(()=>undefined);const client=supabase;if(client&&roomId)void client.rpc("jehoo_leave_room",{p_room_id:roomId});},[roomId]);
 
   async function joinVoice(password?:string){
     const client=supabase;
     if(!client||!room||busy||liveRoomRef.current)return;
     if(room.status==="closed"){setError("الغرفة مغلقة ولا يمكن الانضمام إليها.");return;}
     if(room.status==="locked"&&!canModerate){setError("الغرفة مقفلة حالياً.");return;}
+    const attempt=++joinAttemptRef.current;
     setBusy(true);setError("");
     let pendingRoom:Room|null=null;
     try{
@@ -140,18 +141,23 @@ export default function VoiceRoomRoute() {
         if(String(joinError.message||"").includes("ROOM_PASSWORD_REQUIRED")){setPasswordModal(true);return;}
         throw joinError;
       }
+      if(attempt!==joinAttemptRef.current){await client.rpc("jehoo_leave_room",{p_room_id:room.id});return;}
       const {data,error:tokenError}=await client.functions.invoke("livekit-token",{body:{roomName:room.livekit_room_name}});
       if(tokenError)throw tokenError;
       if(!data?.serverUrl||!data?.participantToken)throw new Error("Voice token response is incomplete.");
+      if(attempt!==joinAttemptRef.current){await client.rpc("jehoo_leave_room",{p_room_id:room.id});return;}
       await AudioSession.startAudioSession();
+      if(attempt!==joinAttemptRef.current){await AudioSession.stopAudioSession().catch(()=>undefined);await client.rpc("jehoo_leave_room",{p_room_id:room.id});return;}
       pendingRoom=new Room();
       await pendingRoom.connect(data.serverUrl,data.participantToken,{});
+      if(attempt!==joinAttemptRef.current){try{await pendingRoom.disconnect()}catch{}pendingRoom=null;await AudioSession.stopAudioSession().catch(()=>undefined);await client.rpc("jehoo_leave_room",{p_room_id:room.id});return;}
       const canPublish=Boolean(data.canPublish);
       let microphoneStarted=false;
       if(canPublish){
         try{await pendingRoom.localParticipant.setMicrophoneEnabled(true);microphoneStarted=true;}
-        catch{Alert.alert("تم الاتصال بالصوت","الميكروفون غير متاح حالياً. يمكنك الاستماع، وتفعيل صلاحية المايك من إعدادات الجهاز.");}
+        catch{if(attempt===joinAttemptRef.current)Alert.alert("تم الاتصال بالصوت","الميكروفون غير متاح حالياً. يمكنك الاستماع، وتفعيل صلاحية المايك من إعدادات الجهاز.");}
       }
+      if(attempt!==joinAttemptRef.current){try{await pendingRoom.disconnect()}catch{}pendingRoom=null;await AudioSession.stopAudioSession().catch(()=>undefined);await client.rpc("jehoo_leave_room",{p_room_id:room.id});return;}
       setMicEnabled(microphoneStarted);
       liveRoomRef.current=pendingRoom;
       const connectedRoom=pendingRoom;
@@ -172,11 +178,12 @@ export default function VoiceRoomRoute() {
     }catch(e){
       if(pendingRoom){try{await pendingRoom.disconnect()}catch{}}
       await client.rpc("jehoo_leave_room",{p_room_id:room.id});
-      setError(e instanceof Error?e.message:"Unable to connect to the voice room.");
+      if(attempt===joinAttemptRef.current)setError(e instanceof Error?e.message:"Unable to connect to the voice room.");
       await AudioSession.stopAudioSession().catch(()=>undefined);
-    }finally{setBusy(false)}
+    }finally{if(attempt===joinAttemptRef.current)setBusy(false)}
   }
   async function exitRoom(){
+    joinAttemptRef.current+=1;
     const client=supabase;
     setChatMessages([]);
     setConversationId(null);
