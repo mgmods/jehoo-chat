@@ -133,7 +133,7 @@ export default function VoiceRoomRoute() {
 
   useEffect(()=>{const client=supabase;if(!client||!roomId)return;const channel=client.channel("room-live-"+roomId).on("postgres_changes",{event:"*",schema:"public",table:"rooms",filter:"id=eq."+roomId},()=>void loadRoom()).on("postgres_changes",{event:"*",schema:"public",table:"room_seats",filter:"room_id=eq."+roomId},()=>void loadRoom()).on("postgres_changes",{event:"*",schema:"public",table:"room_requests",filter:"room_id=eq."+roomId},()=>void loadRoom()).on("postgres_changes",{event:"*",schema:"public",table:"room_members",filter:"room_id=eq."+roomId},()=>void loadRoom()).subscribe();return()=>{void client.removeChannel(channel)}},[roomId,loadRoom]);
 
-  useEffect(()=>()=>{joinAttemptRef.current+=1;const roomInstance=liveRoomRef.current;liveRoomRef.current=null;if(roomInstance){void roomInstance.disconnect();}void stopLiveKitAudioSession().catch(()=>undefined);const client=supabase;if(client&&roomId)void client.rpc("jehoo_leave_room",{p_room_id:roomId});},[roomId]);
+  useEffect(()=>()=>{joinAttemptRef.current+=1;const roomInstance=liveRoomRef.current;liveRoomRef.current=null;if(roomInstance){void roomInstance.disconnect();void stopLiveKitAudioSession().catch(()=>undefined);}const client=supabase;if(client&&roomId)void client.rpc("jehoo_leave_room",{p_room_id:roomId});},[roomId]);
 
   async function joinVoice(password?:string){
     const client=supabase;
