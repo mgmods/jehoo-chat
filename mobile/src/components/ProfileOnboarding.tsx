@@ -172,11 +172,11 @@ export default function ProfileOnboarding({ user, initialProfile, onComplete, on
               </Pressable>
               <Pressable onPress={() => setActiveField("gender")} style={s.infoRow}>
                 <Text style={s.valueText}>{gender === "female" ? "أنثى" : gender === "male" ? "ذكر" : "اختيار"}</Text>
-                <View style={s.rowEnd}><Text style={s.labelText}>الجنس</Text><Ionicons name="chevron-forward" size={18} color="#C9C9C9" /></View>
+                <View style={s.rowEnd}><Text style={s.labelText}>الجنس</Text><Text style={s.chevron}>›</Text></View>
               </Pressable>
               <Pressable onPress={() => setDatePickerOpen(true)} style={s.infoRow}>
                 <Text style={[s.valueText, !birthDate && s.mutedValue]}>{birthDate || "اختيار"}</Text>
-                <View style={s.rowEnd}><Text style={s.labelText}>تاريخ الميلاد</Text><Ionicons name="chevron-forward" size={18} color="#C9C9C9" /></View>
+                <View style={s.rowEnd}><Text style={s.labelText}>تاريخ الميلاد</Text><Text style={s.chevron}>›</Text></View>
               </Pressable>
               <Pressable onPress={() => setActiveField("country")} style={s.infoRow}>
                 <Text style={s.valueText}>{selectedCountry.name}</Text>
@@ -184,7 +184,7 @@ export default function ProfileOnboarding({ user, initialProfile, onComplete, on
               </Pressable>
               <Pressable onPress={() => openTextField("bio")} style={s.infoRow}>
                 <Text style={[s.valueText, !bio && s.mutedValue]} numberOfLines={1}>{bio || "—"}</Text>
-                <View style={s.rowEnd}><Text style={s.labelText}>نبذة</Text><Ionicons name="chevron-forward" size={18} color="#C9C9C9" /></View>
+                <View style={s.rowEnd}><Text style={s.labelText}>نبذة</Text><Text style={s.chevron}>›</Text></View>
               </Pressable>
             </View>
 
