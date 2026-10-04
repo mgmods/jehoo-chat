@@ -241,3 +241,42 @@ export default function HomeScreen() {
   </SafeAreaView>;
 
 }
+
+const s = StyleSheet.create({
+  safe:{flex:1,backgroundColor:"#F4F8F5",paddingHorizontal:14},
+  contentScroll:{flex:1},
+  contentContainer:{paddingTop:10,paddingBottom:112},topLinks:{paddingHorizontal:5,marginBottom:12,flexDirection:"row-reverse",alignItems:"center",justifyContent:"space-between"},quickIcons:{flexDirection:"row",gap:8,alignItems:"center"},quickIcon:{fontSize:27,color:"#173B32",fontWeight:"800"},categoryRow:{flexDirection:"row",gap:9,marginBottom:20},categoryCard:{flex:1,minHeight:88,borderRadius:22,borderWidth:1.5,alignItems:"center",justifyContent:"center",gap:7},categoryEmoji:{fontSize:28},categoryLabel:{fontSize:16,fontWeight:"900",color:"#173B32"},bannerGlow:{flex:1,justifyContent:"center",padding:17,borderRadius:20,backgroundColor:"#075342",borderWidth:1,borderColor:"#28C6A0"},bannerPill:{alignSelf:"flex-start",marginTop:12,paddingHorizontal:14,paddingVertical:7,borderRadius:18,backgroundColor:"#27D0A5"},bannerPillText:{color:"#07382D",fontWeight:"900"},
+  header:{flexDirection:"row-reverse",alignItems:"center",justifyContent:"space-between",marginBottom:10,paddingTop:2},
+  topLinks:{paddingHorizontal:2,marginBottom:10,flexDirection:"row-reverse",alignItems:"center",justifyContent:"space-between"},
+  brand:{fontSize:18,fontWeight:"900",letterSpacing:0,color:"#173B32"},
+  mint:{color:"#31D6B0",fontWeight:"700"},
+  subtitle:{color:"#72877D",fontSize:12,marginTop:5},
+  language:{borderColor:"#263342",borderWidth:1,borderRadius:20,paddingVertical:8,paddingHorizontal:12},
+  languageText:{color:"#173B32",fontSize:12},
+  hero:{marginTop:50,backgroundColor:"#121B25",borderColor:"#263342",borderWidth:1,borderRadius:24,padding:24},
+  eyebrow:{color:"#31D6B0",fontSize:13,marginBottom:18},
+  heroTitle:{fontSize:27,fontWeight:"800",color:"#F2F7FA",marginBottom:12},
+  body:{fontSize:14,lineHeight:24,color:"#B6C4D0",marginBottom:24},
+  primary:{minHeight:48,borderRadius:12,backgroundColor:"#31D6B0",alignItems:"center",justifyContent:"center",paddingHorizontal:16},
+  primaryText:{fontWeight:"800",color:"#06251E"},
+  banner:{height:145,backgroundColor:"#07382F",borderWidth:1,borderColor:"#1E8E70",borderRadius:23,marginBottom:18,overflow:"hidden"},bannerIcon:{width:46,height:46,borderRadius:15,backgroundColor:"#31D6B0",alignItems:"center",justifyContent:"center"},bannerIconText:{fontSize:22,color:"#06251E"},bannerKicker:{fontSize:11,fontWeight:"900",letterSpacing:1,color:"#7BF4D1"},bannerTitle:{fontSize:27,fontWeight:"900",color:"#FFF3B0",marginTop:5},bannerText:{fontSize:12,color:"#E2FFF5",marginTop:5},sectionHeader:{flexDirection:"row",justifyContent:"space-between",alignItems:"center",marginBottom:18},
+  actionsRow:{flexDirection:"row",alignItems:"center",gap:10,marginBottom:16},
+  createCard:{backgroundColor:"#121B25",borderWidth:1,borderColor:"#263342",borderRadius:18,padding:16,gap:10,marginBottom:16},
+  formLabel:{color:"#D9E3EA",fontSize:13,fontWeight:"700",textAlign:"right"},
+  field:{backgroundColor:"#0A1118",borderWidth:1,borderColor:"#263342",borderRadius:10,color:"#F2F7FA",paddingHorizontal:12,paddingVertical:12,textAlign:"right",minHeight:46},
+  descriptionField:{minHeight:84,textAlignVertical:"top"},
+  sectionTitle:{fontSize:21,fontWeight:"900",color:"#173B32"},
+  secondary:{borderColor:"#CDE4D9",borderWidth:1,borderRadius:14,paddingVertical:9,paddingHorizontal:12,backgroundColor:"#FFFFFF"},
+  secondaryText:{color:"#1D6954",fontSize:12,fontWeight:"800"},
+  list:{paddingBottom:110,gap:12},roomColumns:{gap:10,alignItems:"stretch"},
+  roomGrid:{flexDirection:"row",flexWrap:"wrap",gap:10},
+  room:{width:"48%",minWidth:0,overflow:"hidden",borderRadius:20,borderWidth:1,borderColor:"#DCEAE3",backgroundColor:"#FFFFFF",marginBottom:2,shadowColor:"#173B32",shadowOpacity:0.05,shadowRadius:8,elevation:1},
+  roomIcon:{width:48,height:48,borderRadius:14,backgroundColor:"#18352F",alignItems:"center",justifyContent:"center"},roomCover:{width:"100%",height:124,alignItems:"center",justifyContent:"center",position:"relative"},liveBadge:{position:"absolute",bottom:5,left:5,right:5,backgroundColor:"#24C99D",borderRadius:8,paddingVertical:2,alignItems:"center"},liveBadgeText:{fontSize:9,fontWeight:"900",color:"#07382D"},roomMeta:{fontSize:10,color:"#20A783",marginTop:5,fontWeight:"700"},
+  roomEmoji:{fontSize:40},roomCoverHint:{fontSize:9,color:"#BDFBEA",fontWeight:"900",marginTop:5},roomBottom:{flexDirection:"row-reverse",alignItems:"center",justifyContent:"space-between",marginTop:5},
+  roomInfo:{paddingHorizontal:10,paddingVertical:9},
+  roomName:{fontSize:14,fontWeight:"900",color:"#18382F",marginBottom:4},
+  topLinkGroup:{flexDirection:"row",alignItems:"center",gap:14},topLink:{color:"#557267",fontSize:13,fontWeight:"800"},topLinkActive:{color:"#173B32",fontSize:13,fontWeight:"900"},pageTitle:{fontSize:24,fontWeight:"900",color:"#173B32",textAlign:"right",marginBottom:6},chatPage:{paddingTop:8,paddingBottom:100},  status:{borderWidth:1,borderRadius:16,paddingVertical:5,paddingHorizontal:8},
+  empty:{alignItems:"center",justifyContent:"center",padding:32,gap:10},
+  emptyTitle:{color:"#F2F7FA",fontWeight:"700",fontSize:17},
+  error:{color:"#FDA4AF",fontSize:13,marginTop:12},bottomNav:{position:"absolute",left:14,right:14,bottom:6,height:68,borderRadius:22,backgroundColor:"#FFFFFF",borderWidth:1,borderColor:"#E1ECE6",flexDirection:"row",alignItems:"center",justifyContent:"space-around",elevation:8,shadowColor:"#173B32",shadowOpacity:0.08,shadowRadius:10},navItem:{alignItems:"center",justifyContent:"center",minWidth:70},navIcon:{width:38,height:30,borderRadius:12,alignItems:"center",justifyContent:"center"},navIconText:{fontSize:16,fontWeight:"800"},navLabel:{fontSize:11,fontWeight:"800",marginTop:3},emptyTab:{flex:1,alignItems:"center",justifyContent:"center",paddingBottom:100},bigIcon:{width:76,height:76,borderRadius:26,backgroundColor:"#16222D",alignItems:"center",justifyContent:"center",marginBottom:16},bigIconText:{fontSize:32,color:"#31D6B0"},mePage:{flex:1,paddingBottom:100},profileCard:{flexDirection:"row",alignItems:"center",gap:12,backgroundColor:"#121B25",borderWidth:1,borderColor:"#263342",borderRadius:20,padding:16,marginBottom:14},avatar:{width:54,height:54,borderRadius:18,backgroundColor:"#31D6B0",alignItems:"center",justifyContent:"center"},avatarText:{fontSize:24,fontWeight:"900",color:"#06251E"},meName:{fontSize:17,fontWeight:"800",color:"#F2F7FA"},onlineDot:{color:"#31D6B0"},personalRoom:{flexDirection:"row",alignItems:"center",gap:12,backgroundColor:"#102821",borderWidth:1,borderColor:"#1E5B4E",borderRadius:18,padding:15,marginBottom:10},personalIcon:{width:48,height:48,borderRadius:15,backgroundColor:"#31D6B0",alignItems:"center",justifyContent:"center"},personalIconText:{fontSize:23,color:"#06251E"},chevron:{fontSize:25,color:"#31D6B0"},menuRow:{flexDirection:"row",alignItems:"center",gap:12,padding:16,borderBottomWidth:1,borderBottomColor:"#1A2732"},menuIcon:{fontSize:19,color:"#31D6B0",width:28,textAlign:"center"},menuLabel:{flex:1,color:"#D9E3EA",fontSize:14,fontWeight:"700"},signOut:{marginTop:18,borderWidth:1,borderColor:"#4A2930",borderRadius:12,padding:13,alignItems:"center"},signOutText:{color:"#FDA4AF"}
+});
