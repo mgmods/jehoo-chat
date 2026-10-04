@@ -254,6 +254,7 @@ const s = StyleSheet.create({
   topLinkGroup:{flexDirection:"row-reverse",alignItems:"center",gap:24},
   topLink:{color:"#4E5A55",fontSize:16,fontWeight:"800"},
   topLinkActive:{color:"#1B9C72",fontSize:16,fontWeight:"900"},
+  brand:{fontSize:18,fontWeight:"900",color:"#26332E"},mint:{color:"#19C995",fontWeight:"900"},
   quickIcons:{flexDirection:"row",alignItems:"center",gap:9},
   quickButton:{width:34,height:34,borderRadius:11,backgroundColor:"#FFFFFF",borderWidth:1,borderColor:"#E1E5E2",alignItems:"center",justifyContent:"center"},
   quickIcon:{fontSize:18,color:"#26332E",fontWeight:"800"},
