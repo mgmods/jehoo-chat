@@ -30,7 +30,7 @@ export default function HomeScreen() {
   const [roomDescription, setRoomDescription] = useState("");
   const [createBusy, setCreateBusy] = useState(false);
   const [tab, setTab] = useState<"rooms" | "chats" | "me">("rooms");
-  const [roomFilter, setRoomFilter] = useState<"popular" | "egypt" | "syria">("popular");
+  const [roomFilter, setRoomFilter] = useState<"popular" | "egypt" | "syria">("syria");
   const copy = messages[locale];
   const ar = locale === "ar";
 
@@ -210,7 +210,7 @@ export default function HomeScreen() {
         <Pressable disabled={authBusy} onPress={signIn} style={s.primary}>{authBusy ? <ActivityIndicator color="#06251E" /> : <Text style={s.primaryText}>{ar ? "المتابعة باستخدام Google" : "Continue with Google"}</Text>}</Pressable>
       </View> : tab === "rooms" ? <View>
         <Pressable onPress={() => { setTab("rooms"); void loadRooms(); }} style={s.banner}>
-          <View style={s.bannerGlow}><Text style={s.bannerKicker}>JEHOO ✦ LIVE</Text><Text style={s.bannerTitle}>{ar ? "مكافآت الشحن" : "Recharge Rewards"}</Text><Text style={s.bannerText}>{ar ? "ادخل غرفتك المفضلة وتعرّف على أصدقاء جدد" : "Join your favorite rooms and meet new friends"}</Text><View style={s.bannerPill}><Text style={s.bannerPillText}>{ar ? "اكتشف الآن  ←" : "Explore now  →"}</Text></View></View>
+          <View style={s.bannerGlow}><View style={s.bannerArt}><Text style={s.bannerGift}>🎁</Text><Text style={s.bannerDiamond}>◆</Text><Text style={s.bannerPerson}>👩🏻</Text><Text style={s.bannerPerson2}>🧑🏻</Text></View><Text style={s.bannerKicker}>JEHOO ✦ LIVE</Text><Text style={s.bannerTitle}>{ar ? "مكافآت الشحن" : "Recharge Rewards"}</Text><Text style={s.bannerText}>{ar ? "ادخل غرفتك المفضلة وتعرّف على أصدقاء جدد" : "Join your favorite rooms and meet new friends"}</Text><View style={s.bannerPill}><Text style={s.bannerPillText}>{ar ? "اكتشف الآن  ←" : "Explore now  →"}</Text></View></View>
         </Pressable>
         <View style={s.categoryRow}>{[
           { label: ar ? "قربي" : "Nearby", color: "#3997E8", count: 3, icon: "👑" },
@@ -221,9 +221,9 @@ export default function HomeScreen() {
           <Text style={s.categoryLabel}>{item.label}</Text>
         </Pressable>)}</View>
         <View style={s.filterRow}>
-          <Pressable onPress={() => { setRoomFilter("popular"); void loadRooms(); }} style={[s.filterPill,roomFilter==="popular"&&s.filterPillActive]}><Text style={[s.filterText,roomFilter==="popular"&&s.filterTextActive]}>🔥 {ar ? "شائع" : "Popular"}</Text></Pressable>
+          <Pressable onPress={() => { setRoomFilter("popular"); void loadRooms(); }} style={[s.filterPill,roomFilter==="popular"&&s.filterPillActive]}><Text style={[s.filterText,s.filterTextActive]}>🔥 {ar ? "شائع" : "Popular"}</Text></Pressable>
           <Pressable onPress={() => { setRoomFilter("egypt"); void loadRooms(); }} style={[s.filterPill,roomFilter==="egypt"&&s.filterPillActive]}><Text style={[s.filterText,roomFilter==="egypt"&&s.filterTextActive]}>🇪🇬 مصر</Text></Pressable>
-          <Pressable onPress={() => { setRoomFilter("syria"); void loadRooms(); }} style={[s.filterPill,roomFilter==="syria"&&s.filterPillActive]}><Text style={[s.filterText,roomFilter==="syria"&&s.filterTextActive]}>🇸🇾 سوريا</Text></Pressable>
+          <Pressable onPress={() => { setRoomFilter("syria"); void loadRooms(); }} style={[s.filterPill,roomFilter==="syria"&&s.filterPillActive]}><Text style={[s.filterText,roomFilter==="syria"&&s.filterTextCountryActive]}>🇸🇾 سوريا</Text></Pressable>
           <Pressable onPress={() => setRoomFilter(roomFilter==="popular"?"egypt":roomFilter==="egypt"?"syria":"popular")} style={s.dropdown}><Text style={s.filterText}>⌄</Text></Pressable>
         </View>
         <View style={s.sectionHeader}><View><Text style={s.sectionTitle}>{ar ? "الرومات النشطة" : "Live rooms"}</Text><Text style={s.subtitle}>{ar ? "اختر مساحة تناسبك" : "Find your space"}</Text></View><Pressable onPress={() => void loadRooms()} style={s.secondary}><Text style={s.secondaryText}>{ar ? "تحديث ↻" : "Refresh ↻"}</Text></Pressable></View>
@@ -271,7 +271,8 @@ const s = StyleSheet.create({
   language:{borderColor:"#DDE3DF",borderWidth:1,borderRadius:16,paddingVertical:6,paddingHorizontal:10},
   languageText:{color:"#315248",fontSize:11,fontWeight:"800"},
   banner:{marginHorizontal:20,height:208,borderRadius:22,marginBottom:18,overflow:"hidden",backgroundColor:"#D98C38"},
-  bannerGlow:{flex:1,justifyContent:"center",paddingHorizontal:24,paddingVertical:20,backgroundColor:"#D58A35"},
+  bannerGlow:{flex:1,justifyContent:"center",paddingHorizontal:24,paddingVertical:20,backgroundColor:"#D58A35",position:"relative"},
+  bannerArt:{position:"absolute",left:18,top:24,width:170,height:150},bannerGift:{position:"absolute",left:2,top:34,fontSize:46},bannerDiamond:{position:"absolute",left:52,top:12,fontSize:34,color:"#5DE3C0",transform:[{rotate:"45deg"}]},bannerPerson:{position:"absolute",right:18,top:24,fontSize:58},bannerPerson2:{position:"absolute",right:62,top:58,fontSize:52},
   bannerKicker:{fontSize:11,fontWeight:"900",letterSpacing:1,color:"#FFF4D1"},
   bannerTitle:{fontSize:28,fontWeight:"900",color:"#FFF8DD",marginTop:6,textAlign:"right"},
   bannerText:{fontSize:13,color:"#FFF7E8",marginTop:7,textAlign:"right",maxWidth:"72%"},
@@ -286,14 +287,14 @@ const s = StyleSheet.create({
   categoryCrown:{position:"absolute",top:-11,fontSize:16},categoryPerson:{fontSize:20},
   filterRow:{flexDirection:"row-reverse",alignItems:"center",gap:8,marginHorizontal:20,marginBottom:16},
   filterPill:{height:52,borderRadius:26,paddingHorizontal:17,alignItems:"center",justifyContent:"center",backgroundColor:"#FFFFFF",borderWidth:1,borderColor:"#E1E6E3"},
-  filterPillActive:{backgroundColor:"#19C995",borderColor:"#19C995"},
+  filterPillActive:{backgroundColor:"#19C995",borderColor:"#19C995"},filterPillCountryActive:{height:56,borderRadius:28,borderWidth:2,borderColor:"#19C995",backgroundColor:"#FFFFFF",paddingHorizontal:19},
   filterText:{fontSize:14,fontWeight:"900",color:"#4B5953"},
-  filterTextActive:{color:"#FFFFFF"},
+  filterTextActive:{color:"#FFFFFF"},filterTextCountryActive:{color:"#1D6954"},
   dropdown:{height:52,width:52,borderRadius:26,backgroundColor:"#FFFFFF",borderWidth:1,borderColor:"#E1E6E3",alignItems:"center",justifyContent:"center"},
   roomGrid:{flexDirection:"row",flexWrap:"wrap",columnGap:21,rowGap:17,marginHorizontal:20},
   room:{width:"48%",minWidth:0,height:405,overflow:"hidden",borderRadius:25,borderWidth:1,borderColor:"#E2E6E3",backgroundColor:"#FFFFFF",shadowColor:"#17251F",shadowOpacity:0.08,shadowRadius:10,elevation:2},
-  roomCover:{height:"72%",width:"100%",alignItems:"center",justifyContent:"center",position:"relative",backgroundColor:"#D9E8E2"},
-  roomEmoji:{fontSize:50},
+  roomCover:{height:"74%",width:"100%",alignItems:"center",justifyContent:"center",position:"relative",backgroundColor:"#D9E8E2"},
+  roomEmoji:{fontSize:42},
   roomCoverHint:{fontSize:11,color:"#FFFFFF",fontWeight:"900",marginTop:7},
   liveBadge:{position:"absolute",top:13,right:13,bottom:undefined,left:undefined,backgroundColor:"#FFFFFFDD",borderRadius:10,paddingHorizontal:8,paddingVertical:4},
   liveBadgeText:{fontSize:9,fontWeight:"900",color:"#173B32"},
