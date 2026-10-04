@@ -136,7 +136,8 @@ export default function ProfileOnboarding({ user, initialProfile, onComplete }: 
 }
 
 const s = StyleSheet.create({
-  keyboard:{flex:1},\n  scroll:{flex:1,backgroundColor:"#0A1118"},
+  keyboard:{flex:1},
+  scroll:{flex:1,backgroundColor:"#0A1118"},
   page:{flexGrow:1,backgroundColor:"#0A1118",paddingHorizontal:20,paddingTop:18,paddingBottom:36},
   top:{alignItems:"flex-end"},
   progress:{height:4,width:"100%",backgroundColor:"#263342",borderRadius:4,marginBottom:24},
