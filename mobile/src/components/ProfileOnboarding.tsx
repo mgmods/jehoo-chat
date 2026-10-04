@@ -10,6 +10,7 @@ type Props = {
   user: any;
   initialProfile?: any;
   onComplete: () => void;
+  onToggleLanguage: () => void;
 };
 
 export default function ProfileOnboarding({ user, initialProfile, onComplete, onToggleLanguage }: Props) {
