@@ -43,13 +43,13 @@ export default function VoiceRoomRoute() {
     const ids=[...new Set(seatRows.flatMap(seat=>[seat.user_id,seat.reserved_for]).filter((id):id is string=>Boolean(id)))];
     if(ids.length){const {data:profileRows,error:profileError}=await client.from("profiles").select("id,display_name,avatar_url,level,vip_level").in("id",ids);if(profileError){setError(profileError.message);setLoading(false);return;}const map:Record<string,ProfileRow>={};(profileRows??[]).forEach(p=>{map[p.id]=p as ProfileRow});setProfiles(map);}else setProfiles({});
     const {data:{user}}=await client.auth.getUser(); const host=Boolean(user&&user.id===roomData.owner_id); setIsHost(host);
-    let moderator=false;
-    if(user&&!host){const {data:member}=await client.from("room_members").select("room_role").eq("room_id",roomId).eq("user_id",user.id).maybeSingle();moderator=["co_host","moderator"].includes(member?.room_role??"");}
+    let moderator=false;let memberRole="listener";let memberMuted=false;
+    if(user&&!host){const {data:member}=await client.from("room_members").select("room_role,muted").eq("room_id",roomId).eq("user_id",user.id).maybeSingle();memberRole=member?.room_role??"listener";memberMuted=Boolean(member?.muted);moderator=["co_host","moderator"].includes(memberRole);}
     setCanModerate(host||moderator);
     if(host){const [{data:membersData},{data:bansData}]=await Promise.all([client.from("room_members").select("user_id,room_role,muted,profiles(display_name)").eq("room_id",roomId).order("room_role"),client.from("room_bans").select("user_id,reason,created_at,profiles(display_name)").eq("room_id",roomId).order("created_at",{ascending:false})]);setMembers(membersData??[]);setBans(bansData??[]);const {data:requests}=await client.from("room_requests").select("id,user_id,created_at,profiles(display_name)").eq("room_id",roomId).eq("request_type","microphone").eq("status","pending").order("created_at",{ascending:true});setPendingMicRequests((requests??[]) as unknown as MicRequestRow[]);}else {setPendingMicRequests([]);setMembers([]);setBans([]);}
     if(user&&liveRoom){
       const {data:latestRequest}=await client.from("room_requests").select("status").eq("room_id",roomId).eq("user_id",user.id).eq("request_type","microphone").order("created_at",{ascending:false}).limit(1).maybeSingle();
-      if(latestRequest?.status==="accepted"){try{await liveRoom.localParticipant.setMicrophoneEnabled(true);setMicEnabled(true);setMicRequestSent(false)}catch(e){setError(e instanceof Error?e.message:"تمت الموافقة على المايك لكن تعذر تفعيله. جارٍ إعادة المحاولة.");setTimeout(async()=>{if(liveRoomRef.current!==liveRoom)return;try{await liveRoom.localParticipant.setMicrophoneEnabled(true);setMicEnabled(true);setMicRequestSent(false);setError("")}catch{}},1200)}}
+      if(latestRequest?.status==="accepted"&&(host||["co_host","moderator","speaker"].includes(memberRole))&&!memberMuted){try{await liveRoom.localParticipant.setMicrophoneEnabled(true);setMicEnabled(true);setMicRequestSent(false)}catch(e){setError(e instanceof Error?e.message:"تمت الموافقة على المايك لكن تعذر تفعيله. جارٍ إعادة المحاولة.");setTimeout(async()=>{if(liveRoomRef.current!==liveRoom)return;try{await liveRoom.localParticipant.setMicrophoneEnabled(true);setMicEnabled(true);setMicRequestSent(false);setError("")}catch{}},1200)}}
     }
     setLoading(false);
   },[roomId,liveRoom]);
