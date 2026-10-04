@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, SafeAreaView, StyleSheet, Text, TextInput, View, ScrollView } from "react-native";
 import { useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
-import { makeRedirectUri } from "expo-auth-session";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import { messages, type Locale } from "../../packages/shared/src/index";
@@ -84,7 +83,7 @@ export default function HomeScreen() {
     setError("");
     setAuthBusy(true);
     try {
-      const redirectTo = makeRedirectUri({ scheme: "jehoochat", path: "auth/callback" });
+      const redirectTo = "jehoochat://auth/callback";
       const { data, error: oauthError } = await client.auth.signInWithOAuth({
         provider: "google",
         options: { redirectTo, skipBrowserRedirect: true },
