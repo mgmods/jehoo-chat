@@ -43,9 +43,7 @@ export default function ProfileOnboarding({ user, initialProfile, onComplete }: 
     });
     setBusy(false);
     if (saveError) {
-      const message = saveError.message.includes("nickname_taken")
-        ? "هذه الكنية مستخدمة مسبقاً، اختر كنية أخرى."
-        : saveError.message.includes("invalid_birth_date")
+      const message = saveError.message.includes("invalid_birth_date")
           ? "العمر يجب أن يكون بين 13 و100 سنة."
           : "تعذر حفظ الحساب. حاول مرة أخرى.";
       setError(message);
