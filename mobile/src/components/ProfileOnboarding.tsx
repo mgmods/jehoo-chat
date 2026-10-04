@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { ActivityIndicator, FlatList, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { supabase } from "@/lib/supabase";
 import * as ImagePicker from "expo-image-picker";
 import { COUNTRIES } from "@/data/countries";
@@ -20,6 +21,7 @@ export default function ProfileOnboarding({ user, initialProfile, onComplete }: 
   const [country, setCountry] = useState(initialProfile?.country || "SY");
   const [avatarUrl, setAvatarUrl] = useState(initialProfile?.avatar_url || googleAvatar);
   const [avatarBusy, setAvatarBusy] = useState(false);
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
 
   async function chooseAvatar() {
     setError("");
@@ -45,6 +47,15 @@ export default function ProfileOnboarding({ user, initialProfile, onComplete }: 
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const selectedCountry = COUNTRIES.find((item) => item.code === country) || COUNTRIES[0];
+  const today = new Date();
+  const latestAllowedBirthDate = new Date(today.getFullYear() - 13, today.getMonth(), today.getDate());
+  const earliestAllowedBirthDate = new Date(today.getFullYear() - 100, today.getMonth(), today.getDate());
+  const parsedBirthDate = /^\\d{4}-\\d{2}-\\d{2}$/.test(birthDate)
+    ? new Date(`${birthDate}T12:00:00`)
+    : new Date(today.getFullYear() - 18, today.getMonth(), today.getDate());
+  const pickerValue = Number.isNaN(parsedBirthDate.getTime()) ? new Date(today.getFullYear() - 18, today.getMonth(), today.getDate()) : parsedBirthDate;
+  const formatBirthDate = (date: Date) =>
+    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 
   const filteredCountries = useMemo(() => COUNTRIES, []);
 
@@ -115,7 +126,23 @@ export default function ProfileOnboarding({ user, initialProfile, onComplete }: 
       </View>
 
       <Text style={s.label}>تاريخ الميلاد *</Text>
-      <TextInput value={birthDate} onChangeText={setBirthDate} placeholder="YYYY-MM-DD  مثال 2000-05-21" placeholderTextColor="#728295" style={s.input} keyboardType="numbers-and-punctuation" maxLength={10} />
+      <Pressable onPress={() => setDatePickerOpen(true)} style={s.dateButton}>
+        <Text style={[s.dateText, !birthDate && s.datePlaceholder]}>{birthDate || "اختر تاريخ ميلادك"}</Text>
+        <Text style={s.dateIcon}>📅</Text>
+      </Pressable>
+      {datePickerOpen ? <DateTimePicker
+        value={pickerValue}
+        mode="date"
+        display={Platform.OS === "android" ? "calendar" : "spinner"}
+        minimumDate={earliestAllowedBirthDate}
+        maximumDate={latestAllowedBirthDate}
+        onChange={(event, selectedDate) => {
+          if (Platform.OS === "android") setDatePickerOpen(false);
+          if (event.type === "dismissed" || !selectedDate) return;
+          setBirthDate(formatBirthDate(selectedDate));
+          if (Platform.OS === "ios") setDatePickerOpen(false);
+        }}
+      /> : null}
 
       <Text style={s.label}>البلد *</Text>
       <Pressable onPress={() => setCountryOpen(!countryOpen)} style={s.countryButton}>
@@ -157,6 +184,10 @@ const s = StyleSheet.create({
   card:{backgroundColor:"#121B25",borderWidth:1,borderColor:"#263342",borderRadius:22,padding:18,paddingBottom:22},
   label:{color:"#D9E3EA",fontSize:13,fontWeight:"800",textAlign:"right",marginTop:10,marginBottom:7},
   input:{backgroundColor:"#0A1118",borderWidth:1,borderColor:"#263342",borderRadius:12,color:"#F2F7FA",paddingHorizontal:13,paddingVertical:12,textAlign:"right",minHeight:46},
+  dateButton:{backgroundColor:"#0A1118",borderWidth:1,borderColor:"#263342",borderRadius:12,minHeight:50,paddingHorizontal:13,flexDirection:"row",alignItems:"center"},
+  dateText:{flex:1,color:"#F2F7FA",textAlign:"right",fontWeight:"700"},
+  datePlaceholder:{color:"#728295",fontWeight:"400"},
+  dateIcon:{fontSize:20,marginLeft:10},
   row:{flexDirection:"row",gap:10},
   choice:{flex:1,minHeight:46,borderRadius:12,borderWidth:1,borderColor:"#263342",alignItems:"center",justifyContent:"center",backgroundColor:"#0A1118"},
   choiceActive:{borderColor:"#31D6B0",backgroundColor:"#18352F"},
