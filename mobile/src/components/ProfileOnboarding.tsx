@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { ActivityIndicator, FlatList, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, FlatList, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { supabase } from "@/lib/supabase";
 import { COUNTRIES } from "@/data/countries";
 
@@ -62,7 +62,7 @@ export default function ProfileOnboarding({ user, initialProfile, onComplete }: 
     }
   }
 
-  return <ScrollView style={s.scroll} contentContainerStyle={s.page} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+  return <KeyboardAvoidingView style={s.keyboard} behavior={Platform.OS === "ios" ? "padding" : "height"} keyboardVerticalOffset={Platform.OS === "ios" ? 12 : 0}><ScrollView style={s.scroll} contentContainerStyle={s.page} keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"} automaticallyAdjustKeyboardInsets showsVerticalScrollIndicator={false} nestedScrollEnabled>
     <View style={s.top}>
       <View style={s.progress}><View style={s.progressFill} /></View>
       <Text style={s.brand}>JEHOO <Text style={s.mint}>●</Text> CHAT</Text>
@@ -107,12 +107,12 @@ export default function ProfileOnboarding({ user, initialProfile, onComplete }: 
       <Pressable disabled={busy} onPress={submit} style={[s.primary, busy && { opacity: .7 }]}>{busy ? <ActivityIndicator color="#06251E" /> : <Text style={s.primaryText}>إنشاء الحساب والمتابعة</Text>}</Pressable>
       <Text style={s.privacy}>بمتابعتك، يتم حفظ ملفك على Jehoo حتى لا تضطر لتعبئة بياناتك مرة أخرى.</Text>
     </View>
-  </ScrollView>;
+  </ScrollView></KeyboardAvoidingView>;
 }
 
 const s = StyleSheet.create({
-  scroll:{flex:1,backgroundColor:"#0A1118"},
-  page:{flexGrow:1,backgroundColor:"#0A1118",paddingHorizontal:20,paddingTop:18,paddingBottom:140},
+  keyboard:{flex:1},\n  scroll:{flex:1,backgroundColor:"#0A1118"},
+  page:{flexGrow:1,backgroundColor:"#0A1118",paddingHorizontal:20,paddingTop:18,paddingBottom:36},
   top:{alignItems:"flex-end"},
   progress:{height:4,width:"100%",backgroundColor:"#263342",borderRadius:4,marginBottom:24},
   progressFill:{height:4,width:"25%",backgroundColor:"#31D6B0",borderRadius:4},
