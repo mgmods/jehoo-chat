@@ -18,7 +18,15 @@
           }
         }
       ],
-      "expo-notifications"
+      "expo-notifications",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "يسمح JEHOO CHAT باختيار صورة شخصية من الاستوديو.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ]
     ],
     "android": {
       "package": "com.mgmods.jehoochat",
