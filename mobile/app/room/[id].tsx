@@ -100,7 +100,7 @@ export default function VoiceRoomRoute() {
     }catch(e){setError(e instanceof Error?e.message:"تعذر إرسال الرسالة");}finally{setChatBusy(false);}
   }
 
-  useEffect(()=>{const client=supabase;if(!client||!roomId)return;const channel=client.channel("room-seats-"+roomId).on("postgres_changes",{event:"*",schema:"public",table:"room_seats",filter:"room_id=eq."+roomId},()=>void loadRoom()).on("postgres_changes",{event:"*",schema:"public",table:"room_requests",filter:"room_id=eq."+roomId},()=>void loadRoom()).on("postgres_changes",{event:"*",schema:"public",table:"room_members",filter:"room_id=eq."+roomId},()=>void loadRoom()).subscribe();return()=>{void client.removeChannel(channel)}},[roomId,loadRoom]);
+  useEffect(()=>{const client=supabase;if(!client||!roomId)return;const channel=client.channel("room-live-"+roomId).on("postgres_changes",{event:"*",schema:"public",table:"rooms",filter:"id=eq."+roomId},()=>void loadRoom()).on("postgres_changes",{event:"*",schema:"public",table:"room_seats",filter:"room_id=eq."+roomId},()=>void loadRoom()).on("postgres_changes",{event:"*",schema:"public",table:"room_requests",filter:"room_id=eq."+roomId},()=>void loadRoom()).on("postgres_changes",{event:"*",schema:"public",table:"room_members",filter:"room_id=eq."+roomId},()=>void loadRoom()).subscribe();return()=>{void client.removeChannel(channel)}},[roomId,loadRoom]);
 
   useEffect(()=>()=>{const roomInstance=liveRoomRef.current;if(roomInstance){void roomInstance.disconnect();}void AudioSession.stopAudioSession().catch(()=>undefined);},[]);
 
