@@ -142,8 +142,22 @@ export default function HomeScreen() {
 
   async function refreshProfile() {
     if (!supabase || !session?.user) return;
-    const { data } = await supabase.from("profiles").select("id,first_name,nickname,gender,birth_date,country,avatar_url,profile_completed").eq("id", session.user.id).maybeSingle();
-    setProfile(data);
+    setProfileLoading(true);
+    try {
+      const { data, error: profileError } = await supabase.from("profiles")
+        .select("id,public_id,first_name,nickname,gender,birth_date,country,avatar_url,profile_completed")
+        .eq("id", session.user.id)
+        .maybeSingle();
+      if (profileError) throw profileError;
+      setProfile(data);
+      setTab("rooms");
+      setShowCreateRoom(false);
+      router.replace("/");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "تعذر تحديث الملف الشخصي.");
+    } finally {
+      setProfileLoading(false);
+    }
   }
 
   async function openPersonalRoom() {
