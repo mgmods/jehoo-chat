@@ -539,7 +539,7 @@ const s = StyleSheet.create({
   taskCard:{flexDirection:"row-reverse",alignItems:"center",gap:10,paddingVertical:10,borderBottomWidth:1,borderBottomColor:"#E7ECE9"},
   taskTrack:{height:7,borderRadius:4,backgroundColor:"#E4EBE7",marginTop:8,overflow:"hidden"},
   taskFill:{height:7,borderRadius:4,backgroundColor:"#19C995"},
-  taskProgress:{fontSize:10,color:"#5B6B63",marginTop:4,textAlign:"right"},
+
   taskClaim:{backgroundColor:"#19C995",borderRadius:16,paddingHorizontal:12,paddingVertical:8},
   taskClaimText:{fontSize:11,fontWeight:"900",color:"#FFFFFF"},
   taskDone:{fontSize:20,color:"#19C995",fontWeight:"900"},
