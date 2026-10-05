@@ -24,6 +24,9 @@ export default function HomeScreen() {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [profile, setProfile] = useState<any>(null);
   const [profileLoading, setProfileLoading] = useState(true);\n  const [cosmetics, setCosmetics] = useState<Cosmetic[]>([]);\n  const [vipLevels, setVipLevels] = useState<VipLevel[]>([]);\n  const [vipBusy, setVipBusy] = useState<number | null>(null);\n  const [userTasks, setUserTasks] = useState<UserTask[]>([]);\n  const [taskBusy, setTaskBusy] = useState<string | null>(null);\n  const [ownedCosmetics, setOwnedCosmetics] = useState<Set<string>>(new Set());\n  const [cosmeticBusy, setCosmeticBusy] = useState<string | null>(null);
+  const [tasks, setTasks] = useState<any[]>([]);
+  const [taskProgress, setTaskProgress] = useState<Record<string, any>>({});
+  const [taskBusy, setTaskBusy] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
@@ -192,6 +195,34 @@ export default function HomeScreen() {
     } finally { setTaskBusy(null); }
   }
 
+  async function loadTasks() {
+    const client = supabase;
+    if (!client || !session?.user) return;
+    const [{ data: taskRows }, { data: progressRows }] = await Promise.all([
+      client.from("app_tasks").select("id,title,description,task_type,action_type,target_value,reward_coins,starts_at,ends_at,is_active").eq("is_active", true).order("created_at", { ascending: false }),
+      client.from("user_task_progress").select("task_id,progress,completed_at,claimed_at").eq("user_id", session.user.id),
+    ]);
+    setTasks(taskRows ?? []);
+    const map: Record<string, any> = {};
+    (progressRows ?? []).forEach((row: any) => { map[row.task_id] = row; });
+    setTaskProgress(map);
+  }
+
+  async function claimTask(taskId: string) {
+    if (!supabase || !session?.user) return;
+    setTaskBusy(taskId); setError("");
+    try {
+      const { data, error: rpcError } = await supabase.rpc("jehoo_claim_task", { p_task_id: taskId });
+      if (rpcError) throw rpcError;
+      await loadTasks();
+      const reward = Number((data as any)?.reward_coins ?? 0);
+      Alert.alert(ar ? "تم استلام المكافأة 🎁" : "Reward claimed 🎁", ar ? `تمت إضافة ${reward.toLocaleString("ar")} Coins إلى رصيدك.` : `${reward.toLocaleString("en")} Coins added to your balance.`);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "";
+      setError(msg.includes("task_not_complete") ? (ar ? "أكمل المهمة أولاً." : "Complete the task first.") : msg.includes("already") ? (ar ? "تم استلام المكافأة مسبقاً." : "Reward already claimed.") : (ar ? "تعذر استلام المكافأة." : "Could not claim reward."));
+    } finally { setTaskBusy(null); }
+  }
+
   async function loadVip() {
     const client=supabase; if(!client) return;
     const {data}=await client.from("vip_catalog").select("level,title,price,duration_days,benefits,is_active").eq("is_active",true).order("level");
@@ -344,7 +375,31 @@ export default function HomeScreen() {
       </View> : <View style={s.mePage}>
         <Text style={s.pageTitle}>{ar ? "أنا" : "Me"}</Text>
         <View style={s.profileCard}><View style={s.avatar}><Text style={s.avatarText}>{(profile?.nickname || profile?.first_name || "ج").slice(0,1).toUpperCase()}</Text></View><View style={{flex:1}}><Text style={s.meName}>{profile?.nickname || profile?.first_name || (ar ? "مستخدم جيهو" : "JEHOO User")}</Text><Text style={s.subtitle}>ID: {profile?.public_id ?? "—"}</Text></View><Text style={s.onlineDot}>●</Text></View>\n        <View style={s.cosmeticBox}><Text style={s.cosmeticTitle}>{ar ? `VIP الحالي: ${profile?.vip_level || 0}` : `Current VIP: ${profile?.vip_level || 0}`}</Text>{profile?.vip_expires_at?<Text style={s.subtitle}>{ar?"ينتهي: ":"Expires: "}{new Date(profile.vip_expires_at).toLocaleDateString(ar?"ar":"en")}</Text>:null}<View style={s.cosmeticRow}>{vipLevels.map(v=><Pressable key={v.level} disabled={vipBusy!==null} onPress={()=>void buyVip(v.level)} style={[s.cosmeticItem,Number(profile?.vip_level||0)>=v.level&&s.cosmeticItemActive]}><Text style={s.cosmeticEmoji}>VIP</Text><Text style={s.cosmeticName}>{v.title}</Text><Text style={s.cosmeticPrice}>{vipBusy===v.level?(ar?"جارٍ...":"..."):`${Number(v.price).toLocaleString(ar?"ar":"en")} Coins`}</Text></Pressable>)}</View></View><View style={s.cosmeticBox}><Text style={s.cosmeticTitle}>{ar ? "المهام والمكافآت" : "Tasks & Rewards"}</Text><Text style={s.subtitle}>{ar ? "أنجز النشاط داخل التطبيق واحصل على Coins." : "Complete real activity in the app and earn Coins."}</Text>{userTasks.length===0?<Text style={s.subtitle}>{ar ? "لا توجد مهام حالياً." : "No tasks right now."}</Text>:userTasks.map(t=><View key={t.id} style={s.taskRow}><View style={{flex:1}}><Text style={s.cosmeticName}>{t.title}</Text><Text style={s.subtitle}>{t.description || t.action_type}</Text><Text style={s.taskProgress}>{Math.min(t.progress,t.target_value)} / {t.target_value} · +{t.reward_coins} Coins</Text></View><Pressable disabled={!!t.claimed_at || t.progress<t.target_value || taskBusy!==null} onPress={()=>void claimTask(t)} style={[s.taskButton,(t.progress>=t.target_value&&!t.claimed_at)&&s.taskButtonReady]}><Text style={s.taskButtonText}>{t.claimed_at?(ar?"تم":"Done"):t.progress>=t.target_value?(taskBusy===t.id?"...":(ar?"استلام":"Claim")):(ar?"جاري":"Progress")}</Text></Pressable></View>)}</View><View style={s.cosmeticBox}><Text style={s.cosmeticTitle}>{ar ? "المظهر والكوزمتكس" : "Style & Cosmetics"}</Text><Text style={s.subtitle}>{ar ? "اختر إطاراً أو شارة أو تأثير اسم." : "Choose a frame, badge or name effect."}</Text><View style={s.cosmeticRow}>{cosmetics.map(c => <Pressable key={c.cosmetic_key} disabled={cosmeticBusy!==null} onPress={() => void equipCosmetic(c)} style={[s.cosmeticItem,(profile?.equipped_frame_key===c.cosmetic_key||profile?.equipped_badge_key===c.cosmetic_key||profile?.equipped_name_effect_key===c.cosmetic_key)&&s.cosmeticItemActive]}><Text style={s.cosmeticEmoji}>{c.kind==="frame"?"▣":c.kind==="badge"?"★":"✦"}</Text><Text style={s.cosmeticName} numberOfLines={1}>{c.title}</Text><Text style={s.cosmeticPrice}>{ownedCosmetics.has(c.cosmetic_key) ? (ar?"تجهيز":"Equip") : `${Number(c.price).toLocaleString(ar?"ar":"en")} Coins`}</Text></Pressable>)}</View></View>
-        <Pressable style={s.personalRoom} onPress={() => void openPersonalRoom()}><View style={s.personalIcon}><Text style={s.personalIconText}>♬</Text></View><View style={{flex:1}}><Text style={s.roomName}>{ar ? "رومي الشخصي" : "My personal room"}</Text><Text style={s.subtitle}>{ar ? "غرفتك الخاصة وصوتك ومتابعوك" : "Your room, voice and followers"}</Text></View><Text style={s.chevron}>‹</Text></Pressable>
+                <View style={s.cosmeticBox}>
+          <View style={{flexDirection:"row-reverse",alignItems:"center",justifyContent:"space-between"}}>
+            <Text style={s.cosmeticTitle}>{ar ? "المهام والفعاليات" : "Tasks & Events"}</Text>
+            <Pressable onPress={() => void loadTasks()}><Text style={s.secondaryText}>{ar ? "تحديث" : "Refresh"}</Text></Pressable>
+          </View>
+          {tasks.length === 0 ? <Text style={s.subtitle}>{ar ? "لا توجد مهام نشطة حالياً." : "No active tasks right now."}</Text> :
+            tasks.map((t:any) => {
+              const p = taskProgress[t.id] ?? {};
+              const progress = Math.min(Number(p.progress ?? 0), Number(t.target_value ?? 1));
+              const target = Math.max(1, Number(t.target_value ?? 1));
+              const complete = progress >= target;
+              const claimed = !!p.claimed_at;
+              const pct = Math.round((progress / target) * 100);
+              return <View key={t.id} style={s.taskCard}>
+                <View style={{flex:1}}>
+                  <Text style={s.cosmeticName}>{t.title}</Text>
+                  <Text style={s.subtitle}>{t.description || (ar ? "نفّذ النشاط المطلوب لتحصل على المكافأة." : "Complete the activity to earn the reward.")}</Text>
+                  <View style={s.taskTrack}><View style={[s.taskFill,{width:`${pct}%`}]} /></View>
+                  <Text style={s.taskProgress}>{progress} / {target} · {Number(t.reward_coins).toLocaleString(ar?"ar":"en")} Coins</Text>
+                </View>
+                {claimed ? <Text style={s.taskDone}>✓</Text> : complete ? <Pressable disabled={taskBusy===t.id} onPress={() => void claimTask(t.id)} style={s.taskClaim}><Text style={s.taskClaimText}>{taskBusy===t.id ? "..." : (ar ? "استلام" : "Claim")}</Text></Pressable> : <Text style={s.taskPercent}>{pct}%</Text>}
+              </View>
+            })}
+        </View>
+<Pressable style={s.personalRoom} onPress={() => void openPersonalRoom()}><View style={s.personalIcon}><Text style={s.personalIconText}>♬</Text></View><View style={{flex:1}}><Text style={s.roomName}>{ar ? "رومي الشخصي" : "My personal room"}</Text><Text style={s.subtitle}>{ar ? "غرفتك الخاصة وصوتك ومتابعوك" : "Your room, voice and followers"}</Text></View><Text style={s.chevron}>‹</Text></Pressable>
         {[["◉",ar?"ملفي الشخصي":"My profile","profile"],["✦",ar?"المتابعون":"Followers","pending"],["▣",ar?"المتجر والأيديات":"Store & IDs","pending"],["⚙",ar?"الإعدادات":"Settings","settings"]].map(([icon,label,action]) => <Pressable key={label} accessibilityRole="button" disabled={action==="pending"} onPress={() => { if(action==="profile") router.push("/edit-profile"); else if(action==="settings") Alert.alert(ar?"الإعدادات":"Settings",ar?"اختر الإجراء":"Choose an action",[{text:ar?"تبديل اللغة":"Switch language",onPress:()=>setLocale(locale==="ar"?"en":"ar")},{text:ar?"تسجيل الخروج":"Sign out",style:"destructive",onPress:()=>void signOut()},{text:ar?"إلغاء":"Cancel",style:"cancel"}]); }} style={[s.menuRow,action==="pending"&&{opacity:0.48}]}><Text style={s.menuIcon}>{icon}</Text><Text style={s.menuLabel}>{action==="pending"?label+" · "+(ar?"قريباً":"Coming soon"):label}</Text><Text style={s.chevron}>{action==="pending"?"◷":"‹"}</Text></Pressable>)}
         <Pressable onPress={signOut} style={s.signOut}><Text style={s.signOutText}>{copy.signOut}</Text></Pressable>
       </View>}
@@ -421,6 +476,14 @@ const s = StyleSheet.create({
   cosmeticBox:{marginHorizontal:20,marginBottom:14,padding:14,borderRadius:18,backgroundColor:"#FFFFFF",borderWidth:1,borderColor:"#E1E7E3"},\n  cosmeticTitle:{fontSize:16,fontWeight:"900",color:"#26352F",textAlign:"right"},\n  cosmeticRow:{flexDirection:"row-reverse",flexWrap:"wrap",gap:8,marginTop:12},\n  cosmeticItem:{width:"31%",minHeight:86,borderRadius:14,backgroundColor:"#F7FAF8",borderWidth:1,borderColor:"#E0E7E3",alignItems:"center",justifyContent:"center",padding:7},\n  cosmeticItemActive:{borderColor:"#19C995",backgroundColor:"#E9FBF5"},\n  cosmeticEmoji:{fontSize:22,color:"#1B9C72"},cosmeticName:{fontSize:11,fontWeight:"800",color:"#26352F",marginTop:3,textAlign:"center"},cosmeticPrice:{fontSize:9,color:"#5B6B63",marginTop:3},\n  taskRow:{flexDirection:"row-reverse",alignItems:"center",gap:10,marginTop:10,padding:10,borderRadius:14,backgroundColor:"#F7FAF8",borderWidth:1,borderColor:"#E0E7E3"},taskProgress:{fontSize:10,color:"#1B9C72",fontWeight:"800",marginTop:4,textAlign:"right"},taskButton:{minWidth:66,minHeight:38,paddingHorizontal:10,borderRadius:19,backgroundColor:"#DDE5E1",alignItems:"center",justifyContent:"center"},taskButtonReady:{backgroundColor:"#19C995"},taskButtonText:{fontSize:11,fontWeight:"900",color:"#173B32"},\n  bottomNav:{position:"absolute",left:14,right:14,bottom:7,height:70,zIndex:50,borderRadius:22,backgroundColor:"#FFFFFF",borderWidth:1,borderColor:"#E1E7E3",flexDirection:"row",alignItems:"center",justifyContent:"space-around",elevation:8,shadowColor:"#173B32",shadowOpacity:0.08,shadowRadius:10},
   navItem:{alignItems:"center",justifyContent:"center",minWidth:70},navIcon:{width:36,height:30,borderRadius:12,alignItems:"center",justifyContent:"center"},navIconText:{fontSize:16,fontWeight:"800"},navLabel:{fontSize:11,fontWeight:"800",marginTop:3},
   chatPage:{paddingHorizontal:20,paddingTop:18,paddingBottom:100},pageTitle:{fontSize:23,fontWeight:"900",color:"#26352F",textAlign:"right",marginBottom:12},
+  taskCard:{flexDirection:"row-reverse",alignItems:"center",gap:10,paddingVertical:10,borderBottomWidth:1,borderBottomColor:"#E7ECE9"},
+  taskTrack:{height:7,borderRadius:4,backgroundColor:"#E4EBE7",marginTop:8,overflow:"hidden"},
+  taskFill:{height:7,borderRadius:4,backgroundColor:"#19C995"},
+  taskProgress:{fontSize:10,color:"#5B6B63",marginTop:4,textAlign:"right"},
+  taskClaim:{backgroundColor:"#19C995",borderRadius:16,paddingHorizontal:12,paddingVertical:8},
+  taskClaimText:{fontSize:11,fontWeight:"900",color:"#FFFFFF"},
+  taskDone:{fontSize:20,color:"#19C995",fontWeight:"900"},
+  taskPercent:{fontSize:10,fontWeight:"900",color:"#1B9C72"},
   personalRoom:{flexDirection:"row-reverse",alignItems:"center",gap:12,backgroundColor:"#FFFFFF",borderWidth:1,borderColor:"#E0E6E2",borderRadius:20,padding:15,marginBottom:10},
   personalIcon:{width:46,height:46,borderRadius:15,backgroundColor:"#19C995",alignItems:"center",justifyContent:"center"},personalIconText:{fontSize:22,color:"#07382D"},mePage:{paddingHorizontal:20,paddingTop:18,paddingBottom:100},
   profileCard:{flexDirection:"row-reverse",alignItems:"center",gap:12,backgroundColor:"#FFFFFF",borderWidth:1,borderColor:"#E0E6E2",borderRadius:20,padding:15,marginBottom:14},
