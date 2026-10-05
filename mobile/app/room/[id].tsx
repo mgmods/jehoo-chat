@@ -358,7 +358,7 @@ function openMemberActions(targetId:string,name:string){
               }} style={[s.seat,occupied&&s.seatOccupied,seat.status==="locked"&&s.seatLocked]}>
                 <View style={[s.avatar,occupied&&s.avatarSpeaking,person?.equipped_frame_key&&s.equippedFrame]}>{person?.avatar_url?<Image source={{uri:person.avatar_url}} style={s.seatImage}/>:<Text style={s.avatarText}>{label}</Text>}{person?.equipped_badge_key?<View style={s.badgeMarkSeat}><Text style={s.badgeMarkText}>★</Text></View>:null}</View>
                 <Text numberOfLines={1} style={s.seatNumber}>{seat.seat_number}</Text>
-                <Text numberOfLines={1} style={[s.seatName,person?.equipped_name_effect_key&&s.nameEffect]}>{person?.display_name??(seat.status==="locked"?"مقفل":"مقعد")}{person?.equipped_badge_key?" ★":""}{Number(person?.vip_level ?? 0)>0&&(!person?.vip_expires_at||new Date(person?.vip_expires_at ?? 0).getTime()>Date.now())?` · VIP ${person?.vip_level ?? 0}:""}</Text>
+                <Text numberOfLines={1} style={[s.seatName,person?.equipped_name_effect_key&&s.nameEffect]}>{person?.display_name??(seat.status==="locked"?"مقفل":"مقعد")}{person?.equipped_badge_key?" ★":""}{Number(person?.vip_level ?? 0)>0&&(!person?.vip_expires_at||new Date(person?.vip_expires_at ?? 0).getTime()>Date.now())?` · VIP ${person?.vip_level ?? 0}`:""}</Text>
               </Pressable>;
             })}
           </View>
