@@ -10,7 +10,7 @@ import ProfileOnboarding from "@/components/ProfileOnboarding";
 
 WebBrowser.maybeCompleteAuthSession();
 
-type Room = { id: string; owner_id:string; name: string; description: string; cover_url:string|null; status: "active" | "locked" | "closed"; is_featured: boolean; max_seats:number; password_enabled:boolean; created_at: string; owner?:{display_name:string;avatar_url:string;country?:string|null}|null };
+type Cosmetic = { id:string; cosmetic_key:string; title:string; kind:"frame"|"name_effect"|"badge"|"entrance"; asset_url:string|null; price:number; is_active:boolean };\ntype Room = { id: string; owner_id:string; name: string; description: string; cover_url:string|null; status: "active" | "locked" | "closed"; is_featured: boolean; max_seats:number; password_enabled:boolean; created_at: string; owner?:{display_name:string;avatar_url:string;country?:string|null}|null };
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -23,7 +23,7 @@ export default function HomeScreen() {
   const [session, setSession] = useState<Session | null>(null);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [profile, setProfile] = useState<any>(null);
-  const [profileLoading, setProfileLoading] = useState(true);
+  const [profileLoading, setProfileLoading] = useState(true);\n  const [cosmetics, setCosmetics] = useState<Cosmetic[]>([]);\n  const [ownedCosmetics, setOwnedCosmetics] = useState<Set<string>>(new Set());\n  const [cosmeticBusy, setCosmeticBusy] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
@@ -66,7 +66,7 @@ export default function HomeScreen() {
       if (authError) setError(authError.message);
       setSession(data.session);
       if (data.session?.user) {
-        const { data: profileData } = await client.from("profiles").select("id,public_id,first_name,nickname,gender,birth_date,country,avatar_url,profile_completed").eq("id", data.session.user.id).maybeSingle();
+        const { data: profileData } = await client.from("profiles").select("id,public_id,first_name,nickname,gender,birth_date,country,avatar_url,profile_completed,equipped_frame_key,equipped_name_effect_key,equipped_badge_key").eq("id", data.session.user.id).maybeSingle();
         if (active) setProfile(profileData);
       } else {
         setProfile(null);
@@ -103,7 +103,7 @@ export default function HomeScreen() {
     setLoading(false);
   }, [session]);
 
-  useEffect(() => { void loadRooms(); }, [loadRooms]);
+  useEffect(() => { void loadRooms(); }, [loadRooms]);\n  useEffect(() => { void loadCosmetics(); }, [session]);
   useEffect(() => { const client=supabase; if(!client||!session)return; const channel=client.channel("home-rooms").on("postgres_changes",{event:"*",schema:"public",table:"rooms"},()=>void loadRooms()).subscribe(); return()=>{void client.removeChannel(channel)}; },[session,loadRooms]);
 
   async function signIn() {
@@ -167,6 +167,34 @@ export default function HomeScreen() {
     } catch (e) {
       setError(e instanceof Error ? e.message : (ar ? "تعذر إنشاء الغرفة." : "Could not create room."));
     } finally { setCreateBusy(false); }
+  }
+
+  async function loadCosmetics() {
+    const client = supabase;
+    if (!client || !session?.user) return;
+    const [{ data: catalog }, { data: owned }] = await Promise.all([
+      client.from("cosmetics_catalog").select("id,cosmetic_key,title,kind,asset_url,price,is_active").eq("is_active", true).in("kind", ["frame","badge","name_effect"]).order("kind").order("price"),
+      client.from("user_cosmetics").select("cosmetic_key").eq("user_id", session.user.id),
+    ]);
+    setCosmetics((catalog ?? []) as Cosmetic[]);
+    setOwnedCosmetics(new Set((owned ?? []).map((x:any) => String(x.cosmetic_key))));
+  }
+
+  async function equipCosmetic(cosmetic: Cosmetic) {
+    if (!supabase || !session?.user) return;
+    setCosmeticBusy(cosmetic.cosmetic_key); setError("");
+    try {
+      const { data, error: rpcError } = await supabase.rpc("jehoo_purchase_and_equip_cosmetic", { p_cosmetic_key: cosmetic.cosmetic_key });
+      if (rpcError) throw rpcError;
+      await loadCosmetics();
+      const { data: updated } = await supabase.from("profiles").select("id,public_id,first_name,nickname,gender,birth_date,country,avatar_url,profile_completed,equipped_frame_key,equipped_name_effect_key,equipped_badge_key").eq("id", session.user.id).maybeSingle();
+      setProfile(updated);
+      Alert.alert(ar ? "تم" : "Done", ar ? (ownedCosmetics.has(cosmetic.cosmetic_key) ? "تم تجهيز العنصر." : "تم شراء وتجهيز العنصر.") : (ownedCosmetics.has(cosmetic.cosmetic_key) ? "Equipped." : "Purchased and equipped."));
+      void data;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "";
+      setError(msg.includes("insufficient_coins") ? (ar ? "رصيد Coins غير كافٍ." : "Not enough Coins.") : (ar ? "تعذر تجهيز الكوزمتك." : "Could not equip cosmetic."));
+    } finally { setCosmeticBusy(null); }
   }
 
   async function refreshProfile() {
@@ -273,7 +301,7 @@ export default function HomeScreen() {
         <Pressable style={s.personalRoom} onPress={() => router.push("/official-messages")}><View style={s.personalIcon}><Text style={s.personalIconText}>✓</Text></View><View style={{flex:1}}><Text style={s.roomName}>الرسائل الرسمية ✅</Text><Text style={s.subtitle}>إعلانات وإشعارات الإدارة — مثبتة بالأعلى</Text></View><Text style={s.chevron}>‹</Text></Pressable>
       </View> : <View style={s.mePage}>
         <Text style={s.pageTitle}>{ar ? "أنا" : "Me"}</Text>
-        <View style={s.profileCard}><View style={s.avatar}><Text style={s.avatarText}>{(profile?.nickname || profile?.first_name || "ج").slice(0,1).toUpperCase()}</Text></View><View style={{flex:1}}><Text style={s.meName}>{profile?.nickname || profile?.first_name || (ar ? "مستخدم جيهو" : "JEHOO User")}</Text><Text style={s.subtitle}>ID: {profile?.public_id ?? "—"}</Text></View><Text style={s.onlineDot}>●</Text></View>
+        <View style={s.profileCard}><View style={s.avatar}><Text style={s.avatarText}>{(profile?.nickname || profile?.first_name || "ج").slice(0,1).toUpperCase()}</Text></View><View style={{flex:1}}><Text style={s.meName}>{profile?.nickname || profile?.first_name || (ar ? "مستخدم جيهو" : "JEHOO User")}</Text><Text style={s.subtitle}>ID: {profile?.public_id ?? "—"}</Text></View><Text style={s.onlineDot}>●</Text></View>\n        <View style={s.cosmeticBox}><Text style={s.cosmeticTitle}>{ar ? "المظهر والكوزمتكس" : "Style & Cosmetics"}</Text><Text style={s.subtitle}>{ar ? "اختر إطاراً أو شارة أو تأثير اسم." : "Choose a frame, badge or name effect."}</Text><View style={s.cosmeticRow}>{cosmetics.map(c => <Pressable key={c.cosmetic_key} disabled={cosmeticBusy!==null} onPress={() => void equipCosmetic(c)} style={[s.cosmeticItem,(profile?.equipped_frame_key===c.cosmetic_key||profile?.equipped_badge_key===c.cosmetic_key||profile?.equipped_name_effect_key===c.cosmetic_key)&&s.cosmeticItemActive]}><Text style={s.cosmeticEmoji}>{c.kind==="frame"?"▣":c.kind==="badge"?"★":"✦"}</Text><Text style={s.cosmeticName} numberOfLines={1}>{c.title}</Text><Text style={s.cosmeticPrice}>{ownedCosmetics.has(c.cosmetic_key) ? (ar?"تجهيز":"Equip") : `${Number(c.price).toLocaleString(ar?"ar":"en")} Coins`}</Text></Pressable>)}</View></View>
         <Pressable style={s.personalRoom} onPress={() => void openPersonalRoom()}><View style={s.personalIcon}><Text style={s.personalIconText}>♬</Text></View><View style={{flex:1}}><Text style={s.roomName}>{ar ? "رومي الشخصي" : "My personal room"}</Text><Text style={s.subtitle}>{ar ? "غرفتك الخاصة وصوتك ومتابعوك" : "Your room, voice and followers"}</Text></View><Text style={s.chevron}>‹</Text></Pressable>
         {[["◉",ar?"ملفي الشخصي":"My profile","profile"],["✦",ar?"المتابعون":"Followers","pending"],["▣",ar?"المتجر والأيديات":"Store & IDs","pending"],["⚙",ar?"الإعدادات":"Settings","settings"]].map(([icon,label,action]) => <Pressable key={label} accessibilityRole="button" disabled={action==="pending"} onPress={() => { if(action==="profile") router.push("/edit-profile"); else if(action==="settings") Alert.alert(ar?"الإعدادات":"Settings",ar?"اختر الإجراء":"Choose an action",[{text:ar?"تبديل اللغة":"Switch language",onPress:()=>setLocale(locale==="ar"?"en":"ar")},{text:ar?"تسجيل الخروج":"Sign out",style:"destructive",onPress:()=>void signOut()},{text:ar?"إلغاء":"Cancel",style:"cancel"}]); }} style={[s.menuRow,action==="pending"&&{opacity:0.48}]}><Text style={s.menuIcon}>{icon}</Text><Text style={s.menuLabel}>{action==="pending"?label+" · "+(ar?"قريباً":"Coming soon"):label}</Text><Text style={s.chevron}>{action==="pending"?"◷":"‹"}</Text></Pressable>)}
         <Pressable onPress={signOut} style={s.signOut}><Text style={s.signOutText}>{copy.signOut}</Text></Pressable>
@@ -348,7 +376,7 @@ const s = StyleSheet.create({
   empty:{alignItems:"center",justifyContent:"center",padding:32,gap:10},
   emptyTitle:{color:"#45544E",fontWeight:"800",fontSize:17},
   error:{color:"#C94A4A",fontSize:13,marginTop:12,textAlign:"center"},
-  bottomNav:{position:"absolute",left:14,right:14,bottom:7,height:70,zIndex:50,borderRadius:22,backgroundColor:"#FFFFFF",borderWidth:1,borderColor:"#E1E7E3",flexDirection:"row",alignItems:"center",justifyContent:"space-around",elevation:8,shadowColor:"#173B32",shadowOpacity:0.08,shadowRadius:10},
+  cosmeticBox:{marginHorizontal:20,marginBottom:14,padding:14,borderRadius:18,backgroundColor:"#FFFFFF",borderWidth:1,borderColor:"#E1E7E3"},\n  cosmeticTitle:{fontSize:16,fontWeight:"900",color:"#26352F",textAlign:"right"},\n  cosmeticRow:{flexDirection:"row-reverse",flexWrap:"wrap",gap:8,marginTop:12},\n  cosmeticItem:{width:"31%",minHeight:86,borderRadius:14,backgroundColor:"#F7FAF8",borderWidth:1,borderColor:"#E0E7E3",alignItems:"center",justifyContent:"center",padding:7},\n  cosmeticItemActive:{borderColor:"#19C995",backgroundColor:"#E9FBF5"},\n  cosmeticEmoji:{fontSize:22,color:"#1B9C72"},cosmeticName:{fontSize:11,fontWeight:"800",color:"#26352F",marginTop:3,textAlign:"center"},cosmeticPrice:{fontSize:9,color:"#5B6B63",marginTop:3},\n  bottomNav:{position:"absolute",left:14,right:14,bottom:7,height:70,zIndex:50,borderRadius:22,backgroundColor:"#FFFFFF",borderWidth:1,borderColor:"#E1E7E3",flexDirection:"row",alignItems:"center",justifyContent:"space-around",elevation:8,shadowColor:"#173B32",shadowOpacity:0.08,shadowRadius:10},
   navItem:{alignItems:"center",justifyContent:"center",minWidth:70},navIcon:{width:36,height:30,borderRadius:12,alignItems:"center",justifyContent:"center"},navIconText:{fontSize:16,fontWeight:"800"},navLabel:{fontSize:11,fontWeight:"800",marginTop:3},
   chatPage:{paddingHorizontal:20,paddingTop:18,paddingBottom:100},pageTitle:{fontSize:23,fontWeight:"900",color:"#26352F",textAlign:"right",marginBottom:12},
   personalRoom:{flexDirection:"row-reverse",alignItems:"center",gap:12,backgroundColor:"#FFFFFF",borderWidth:1,borderColor:"#E0E6E2",borderRadius:20,padding:15,marginBottom:10},
