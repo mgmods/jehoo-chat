@@ -335,7 +335,7 @@ function openMemberActions(targetId:string,name:string){
           <Pressable onPress={()=>Alert.alert("مغادرة الغرفة","هل تريد مغادرة الغرفة؟",[ {text:"إلغاء",style:"cancel"},{text:"مغادرة",style:"destructive",onPress:()=>void exitRoom()} ])} style={s.power}><Text style={s.powerText}>⏻</Text></Pressable>
           <View style={s.ownerCard}>
             <View style={[s.ownerAvatar,ownerProfile?.equipped_frame_key&&s.equippedFrame]}>{ownerProfile?.avatar_url?<Image source={{uri:ownerProfile.avatar_url}} style={s.ownerImage}/>:<Text style={s.ownerAvatarText}>👤</Text>}{ownerProfile?.equipped_badge_key?<View style={s.badgeMark}><Text style={s.badgeMarkText}>★</Text></View>:null}</View>
-            <View style={s.ownerText}><Text style={[s.ownerName,ownerProfile?.equipped_name_effect_key&&s.nameEffect]} numberOfLines={1}>{ownerProfile?.display_name||"مالك الغرفة"}{ownerProfile?.equipped_badge_key?"  ★":""}{Number(ownerProfile?.vip_level ?? 0)>0&&(!ownerProfile?.vip_expires_at||new Date(ownerProfile.vip_expires_at).getTime()>Date.now())?`  VIP ${ownerProfile.vip_level}`:""}</Text><Text style={s.ownerId}>ID: {ownerProfile?.id?.slice(0,8)??"—"}</Text></View>
+            <View style={s.ownerText}><Text style={[s.ownerName,ownerProfile?.equipped_name_effect_key&&s.nameEffect]} numberOfLines={1}>{ownerProfile?.display_name||"مالك الغرفة"}{ownerProfile?.equipped_badge_key?"  ★":""}{Number(ownerProfile?.vip_level ?? 0)>0&&(!ownerProfile?.vip_expires_at||new Date(ownerProfile?.vip_expires_at ?? 0).getTime()>Date.now())?`  VIP ${ownerProfile?.vip_level ?? 0}`:""}</Text><Text style={s.ownerId}>ID: {ownerProfile?.id?.slice(0,8)??"—"}</Text></View>
             {currentUserId&&currentUserId!==room?.owner_id?<Pressable onPress={()=>void toggleFollow()} style={s.follow}><Text style={s.followText}>{followed?"متابَع":"متابعة"}</Text></Pressable>:null}
           </View>
           <View style={s.onlinePill}><Text style={s.onlineText}>👤 {roomMemberCount}</Text></View>
@@ -358,7 +358,7 @@ function openMemberActions(targetId:string,name:string){
               }} style={[s.seat,occupied&&s.seatOccupied,seat.status==="locked"&&s.seatLocked]}>
                 <View style={[s.avatar,occupied&&s.avatarSpeaking,person?.equipped_frame_key&&s.equippedFrame]}>{person?.avatar_url?<Image source={{uri:person.avatar_url}} style={s.seatImage}/>:<Text style={s.avatarText}>{label}</Text>}{person?.equipped_badge_key?<View style={s.badgeMarkSeat}><Text style={s.badgeMarkText}>★</Text></View>:null}</View>
                 <Text numberOfLines={1} style={s.seatNumber}>{seat.seat_number}</Text>
-                <Text numberOfLines={1} style={[s.seatName,person?.equipped_name_effect_key&&s.nameEffect]}>{person?.display_name??(seat.status==="locked"?"مقفل":"مقعد")}{person?.equipped_badge_key?" ★":""}{Number(person?.vip_level ?? 0)>0&&(!person?.vip_expires_at||new Date(person?.vip_expires_at).getTime()>Date.now())?` · VIP ${person.vip_level}`:""}</Text>
+                <Text numberOfLines={1} style={[s.seatName,person?.equipped_name_effect_key&&s.nameEffect]}>{person?.display_name??(seat.status==="locked"?"مقفل":"مقعد")}{person?.equipped_badge_key?" ★":""}{Number(person?.vip_level ?? 0)>0&&(!person?.vip_expires_at||new Date(person?.vip_expires_at ?? 0).getTime()>Date.now())?` · VIP ${person?.vip_level ?? 0}:""}</Text>
               </Pressable>;
             })}
           </View>
