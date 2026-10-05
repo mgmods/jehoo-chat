@@ -105,7 +105,7 @@ export default function HomeScreen() {
     setLoading(false);
   }, [session]);
 
-  useEffect(() => { void loadRooms(); }, [loadRooms]);\n  useEffect(() => { void loadCosmetics(); void loadVip(); void loadTasks(); }, [session]);
+  useEffect(() => { void loadRooms(); }, [loadRooms]);\n  useEffect(() => { void loadCosmetics(); void loadVip(); void loadTasks(); void loadWallet(); }, [session]);
   useEffect(() => { const client=supabase; if(!client||!session)return; const channel=client.channel("home-rooms").on("postgres_changes",{event:"*",schema:"public",table:"rooms"},()=>void loadRooms()).subscribe(); return()=>{void client.removeChannel(channel)}; },[session,loadRooms]);
 
   async function signIn() {
@@ -171,27 +171,33 @@ export default function HomeScreen() {
     } finally { setCreateBusy(false); }
   }
 
-  async function loadTasks() {
-    if (!supabase || !session?.user) { setUserTasks([]); return; }
-    const { data: tasks } = await supabase.from("app_tasks").select("id,title,description,action_type,target_value,reward_coins").eq("is_active", true).order("created_at", { ascending: false }).limit(20);
-    const ids = (tasks ?? []).map((x:any) => x.id);
-    if (!ids.length) { setUserTasks([]); return; }
-    const { data: progress } = await supabase.from("user_task_progress").select("task_id,progress,completed_at,claimed_at").eq("user_id", session.user.id).in("task_id", ids);
-    const map = new Map((progress ?? []).map((x:any) => [x.task_id, x]));
-    setUserTasks((tasks ?? []).map((x:any) => ({...x, progress:Number(map.get(x.id)?.progress ?? 0), completed_at:map.get(x.id)?.completed_at ?? null, claimed_at:map.get(x.id)?.claimed_at ?? null})) as UserTask[]);
+  async function loadWallet() {
+    if (!supabase || !session?.user) return;
+    const [{ data: wallet }, { data: packages }] = await Promise.all([
+      supabase.from("wallets").select("coins,diamonds").eq("user_id", session.user.id).maybeSingle(),
+      supabase.from("coin_packages").select("id,package_key,title,coins,bonus_coins,price_usd,sku,is_popular,is_active").eq("is_active", true).order("sort_order"),
+    ]);
+    setWalletCoins(Number(wallet?.coins ?? 0));
+    setWalletDiamonds(Number(wallet?.diamonds ?? 0));
+    setCoinPackages(packages ?? []);
   }
 
-  async function claimTask(task: UserTask) {
-    if (!supabase || task.progress < task.target_value || task.claimed_at || taskBusy) return;
-    setTaskBusy(task.id); setError("");
+  async function requestWithdraw() {
+    if (!supabase || !session?.user || withdrawBusy) return;
+    setWithdrawBusy(true); setError("");
     try {
-      const { error: rpcError } = await supabase.rpc("jehoo_claim_task", { p_task_id: task.id });
+      const { data, error: rpcError } = await supabase.rpc("jehoo_create_withdraw_request", {
+        p_diamonds: Math.max(1, Math.floor(Number(withdrawAmount) || 0)),
+        p_method: withdrawMethod.trim() || "manual",
+        p_payout_details: {},
+      });
       if (rpcError) throw rpcError;
-      await loadTasks();
-      Alert.alert(ar ? "تم استلام المكافأة" : "Reward claimed", ar ? `حصلت على ${task.reward_coins} Coins.` : `You received ${task.reward_coins} Coins.`);
+      await loadWallet();
+      Alert.alert(ar ? "تم إرسال طلب السحب" : "Withdrawal requested", ar ? ("القيمة: " + Number((data as any)?.amount_usd ?? 0).toFixed(2) + " $") : ("Amount: $" + Number((data as any)?.amount_usd ?? 0).toFixed(2)));
     } catch (e) {
-      setError(e instanceof Error ? e.message : (ar ? "تعذر استلام المكافأة." : "Could not claim reward."));
-    } finally { setTaskBusy(null); }
+      const msg = e instanceof Error ? e.message : "";
+      setError(msg.includes("MIN_WITHDRAW") ? (ar ? "لم تصل للحد الأدنى للسحب." : "Minimum withdrawal not reached.") : msg.includes("INSUFFICIENT_DIAMONDS") ? (ar ? "رصيد Diamonds غير كافٍ." : "Not enough Diamonds.") : (ar ? "تعذر إنشاء طلب السحب." : "Could not create withdrawal request."));
+    } finally { setWithdrawBusy(false); }
   }
 
   async function loadTasks() {
@@ -373,7 +379,20 @@ export default function HomeScreen() {
         <Pressable style={s.personalRoom} onPress={() => router.push("/official-messages")}><View style={s.personalIcon}><Text style={s.personalIconText}>✓</Text></View><View style={{flex:1}}><Text style={s.roomName}>الرسائل الرسمية ✅</Text><Text style={s.subtitle}>إعلانات وإشعارات الإدارة — مثبتة بالأعلى</Text></View><Text style={s.chevron}>‹</Text></Pressable>
       </View> : <View style={s.mePage}>
         <Text style={s.pageTitle}>{ar ? "أنا" : "Me"}</Text>
-        <View style={s.profileCard}><View style={s.avatar}><Text style={s.avatarText}>{(profile?.nickname || profile?.first_name || "ج").slice(0,1).toUpperCase()}</Text></View><View style={{flex:1}}><Text style={s.meName}>{profile?.nickname || profile?.first_name || (ar ? "مستخدم جيهو" : "JEHOO User")}</Text><Text style={s.subtitle}>ID: {profile?.public_id ?? "—"}</Text></View><Text style={s.onlineDot}>●</Text></View>\n        <View style={s.cosmeticBox}><Text style={s.cosmeticTitle}>{ar ? `VIP الحالي: ${profile?.vip_level || 0}` : `Current VIP: ${profile?.vip_level || 0}`}</Text>{profile?.vip_expires_at?<Text style={s.subtitle}>{ar?"ينتهي: ":"Expires: "}{new Date(profile.vip_expires_at).toLocaleDateString(ar?"ar":"en")}</Text>:null}<View style={s.cosmeticRow}>{vipLevels.map(v=><Pressable key={v.level} disabled={vipBusy!==null} onPress={()=>void buyVip(v.level)} style={[s.cosmeticItem,Number(profile?.vip_level||0)>=v.level&&s.cosmeticItemActive]}><Text style={s.cosmeticEmoji}>VIP</Text><Text style={s.cosmeticName}>{v.title}</Text><Text style={s.cosmeticPrice}>{vipBusy===v.level?(ar?"جارٍ...":"..."):`${Number(v.price).toLocaleString(ar?"ar":"en")} Coins`}</Text></Pressable>)}</View></View><View style={s.cosmeticBox}><Text style={s.cosmeticTitle}>{ar ? "المهام والمكافآت" : "Tasks & Rewards"}</Text><Text style={s.subtitle}>{ar ? "أنجز النشاط داخل التطبيق واحصل على Coins." : "Complete real activity in the app and earn Coins."}</Text>{userTasks.length===0?<Text style={s.subtitle}>{ar ? "لا توجد مهام حالياً." : "No tasks right now."}</Text>:userTasks.map(t=><View key={t.id} style={s.taskRow}><View style={{flex:1}}><Text style={s.cosmeticName}>{t.title}</Text><Text style={s.subtitle}>{t.description || t.action_type}</Text><Text style={s.taskProgress}>{Math.min(t.progress,t.target_value)} / {t.target_value} · +{t.reward_coins} Coins</Text></View><Pressable disabled={!!t.claimed_at || t.progress<t.target_value || taskBusy!==null} onPress={()=>void claimTask(t)} style={[s.taskButton,(t.progress>=t.target_value&&!t.claimed_at)&&s.taskButtonReady]}><Text style={s.taskButtonText}>{t.claimed_at?(ar?"تم":"Done"):t.progress>=t.target_value?(taskBusy===t.id?"...":(ar?"استلام":"Claim")):(ar?"جاري":"Progress")}</Text></Pressable></View>)}</View><View style={s.cosmeticBox}><Text style={s.cosmeticTitle}>{ar ? "المظهر والكوزمتكس" : "Style & Cosmetics"}</Text><Text style={s.subtitle}>{ar ? "اختر إطاراً أو شارة أو تأثير اسم." : "Choose a frame, badge or name effect."}</Text><View style={s.cosmeticRow}>{cosmetics.map(c => <Pressable key={c.cosmetic_key} disabled={cosmeticBusy!==null} onPress={() => void equipCosmetic(c)} style={[s.cosmeticItem,(profile?.equipped_frame_key===c.cosmetic_key||profile?.equipped_badge_key===c.cosmetic_key||profile?.equipped_name_effect_key===c.cosmetic_key)&&s.cosmeticItemActive]}><Text style={s.cosmeticEmoji}>{c.kind==="frame"?"▣":c.kind==="badge"?"★":"✦"}</Text><Text style={s.cosmeticName} numberOfLines={1}>{c.title}</Text><Text style={s.cosmeticPrice}>{ownedCosmetics.has(c.cosmetic_key) ? (ar?"تجهيز":"Equip") : `${Number(c.price).toLocaleString(ar?"ar":"en")} Coins`}</Text></Pressable>)}</View></View>
+        <View style={s.profileCard}><View style={s.avatar}><Text style={s.avatarText}>{(profile?.nickname || profile?.first_name || "ج").slice(0,1).toUpperCase()}</Text></View><View style={{flex:1}}><Text style={s.meName}>{profile?.nickname || profile?.first_name || (ar ? "مستخدم جيهو" : "JEHOO User")}</Text><Text style={s.subtitle}>ID: {profile?.public_id ?? "—"}</Text></View><Text style={s.onlineDot}>●</Text></View>\n        <View style={s.cosmeticBox}>
+          <Text style={s.cosmeticTitle}>{ar ? "المحفظة" : "Wallet"}</Text>
+          <View style={{flexDirection:"row-reverse",gap:10}}>
+            <View style={[s.taskCard,{flex:1}]}><Text style={s.cosmeticName}>{walletCoins.toLocaleString(ar?"ar":"en")} Coins</Text><Text style={s.subtitle}>{ar?"رصيد الشحن":"Spendable balance"}</Text></View>
+            <View style={[s.taskCard,{flex:1}]}><Text style={s.cosmeticName}>{walletDiamonds.toLocaleString(ar?"ar":"en")} ♦</Text><Text style={s.subtitle}>{ar?"أرباح الهدايا":"Gift earnings"}</Text></View>
+          </View>
+          <Text style={s.subtitle}>{ar ? "باقات الشحن" : "Recharge packages"}</Text>
+          {coinPackages.map((p:any)=><View key={p.package_key} style={s.taskRow}><View style={{flex:1}}><Text style={s.cosmeticName}>{p.title}</Text><Text style={s.subtitle}>{Number(p.coins+p.bonus_coins).toLocaleString(ar?"ar":"en")} Coins · {"$"}{Number(p.price_usd).toFixed(2)}</Text></View><Text style={s.taskPercent}>{p.is_popular ? "★" : ""}</Text></View>)}
+          <Text style={s.subtitle}>{ar ? "السحب" : "Withdraw"}</Text>
+          <TextInput value={String(withdrawAmount)} onChangeText={v=>setWithdrawAmount(Number(v.replace(/[^0-9]/g,""))||0)} keyboardType="number-pad" placeholder={ar?"عدد Diamonds":"Diamonds"} placeholderTextColor="#728295" style={s.field}/>
+          <TextInput value={withdrawMethod} onChangeText={setWithdrawMethod} placeholder={ar?"طريقة السحب":"Payout method"} placeholderTextColor="#728295" style={s.field}/>
+          <Pressable disabled={withdrawBusy} onPress={()=>void requestWithdraw()} style={s.primary}><Text style={s.primaryText}>{withdrawBusy?(ar?"جارٍ الطلب...":"Submitting..."):(ar?"طلب سحب":"Request withdrawal")}</Text></Pressable>
+        </View>
+        <View style={s.cosmeticBox}><Text style={s.cosmeticTitle}>{ar ? `VIP الحالي: ${profile?.vip_level || 0}` : `Current VIP: ${profile?.vip_level || 0}`}</Text>{profile?.vip_expires_at?<Text style={s.subtitle}>{ar?"ينتهي: ":"Expires: "}{new Date(profile.vip_expires_at).toLocaleDateString(ar?"ar":"en")}</Text>:null}<View style={s.cosmeticRow}>{vipLevels.map(v=><Pressable key={v.level} disabled={vipBusy!==null} onPress={()=>void buyVip(v.level)} style={[s.cosmeticItem,Number(profile?.vip_level||0)>=v.level&&s.cosmeticItemActive]}><Text style={s.cosmeticEmoji}>VIP</Text><Text style={s.cosmeticName}>{v.title}</Text><Text style={s.cosmeticPrice}>{vipBusy===v.level?(ar?"جارٍ...":"..."):`${Number(v.price).toLocaleString(ar?"ar":"en")} Coins`}</Text></Pressable>)}</View></View><View style={s.cosmeticBox}><Text style={s.cosmeticTitle}>{ar ? "المهام والمكافآت" : "Tasks & Rewards"}</Text><Text style={s.subtitle}>{ar ? "أنجز النشاط داخل التطبيق واحصل على Coins." : "Complete real activity in the app and earn Coins."}</Text>{userTasks.length===0?<Text style={s.subtitle}>{ar ? "لا توجد مهام حالياً." : "No tasks right now."}</Text>:userTasks.map(t=><View key={t.id} style={s.taskRow}><View style={{flex:1}}><Text style={s.cosmeticName}>{t.title}</Text><Text style={s.subtitle}>{t.description || t.action_type}</Text><Text style={s.taskProgress}>{Math.min(t.progress,t.target_value)} / {t.target_value} · +{t.reward_coins} Coins</Text></View><Pressable disabled={!!t.claimed_at || t.progress<t.target_value || taskBusy!==null} onPress={()=>void claimTask(t)} style={[s.taskButton,(t.progress>=t.target_value&&!t.claimed_at)&&s.taskButtonReady]}><Text style={s.taskButtonText}>{t.claimed_at?(ar?"تم":"Done"):t.progress>=t.target_value?(taskBusy===t.id?"...":(ar?"استلام":"Claim")):(ar?"جاري":"Progress")}</Text></Pressable></View>)}</View><View style={s.cosmeticBox}><Text style={s.cosmeticTitle}>{ar ? "المظهر والكوزمتكس" : "Style & Cosmetics"}</Text><Text style={s.subtitle}>{ar ? "اختر إطاراً أو شارة أو تأثير اسم." : "Choose a frame, badge or name effect."}</Text><View style={s.cosmeticRow}>{cosmetics.map(c => <Pressable key={c.cosmetic_key} disabled={cosmeticBusy!==null} onPress={() => void equipCosmetic(c)} style={[s.cosmeticItem,(profile?.equipped_frame_key===c.cosmetic_key||profile?.equipped_badge_key===c.cosmetic_key||profile?.equipped_name_effect_key===c.cosmetic_key)&&s.cosmeticItemActive]}><Text style={s.cosmeticEmoji}>{c.kind==="frame"?"▣":c.kind==="badge"?"★":"✦"}</Text><Text style={s.cosmeticName} numberOfLines={1}>{c.title}</Text><Text style={s.cosmeticPrice}>{ownedCosmetics.has(c.cosmetic_key) ? (ar?"تجهيز":"Equip") : `${Number(c.price).toLocaleString(ar?"ar":"en")} Coins`}</Text></Pressable>)}</View></View>
                 <View style={s.cosmeticBox}>
           <View style={{flexDirection:"row-reverse",alignItems:"center",justifyContent:"space-between"}}>
             <Text style={s.cosmeticTitle}>{ar ? "المهام والفعاليات" : "Tasks & Events"}</Text>
