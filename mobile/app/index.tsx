@@ -26,7 +26,6 @@ export default function HomeScreen() {
   const [profileLoading, setProfileLoading] = useState(true);\n  const [cosmetics, setCosmetics] = useState<Cosmetic[]>([]);\n  const [vipLevels, setVipLevels] = useState<VipLevel[]>([]);\n  const [vipBusy, setVipBusy] = useState<number | null>(null);\n  const [userTasks, setUserTasks] = useState<UserTask[]>([]);\n  const [taskBusy, setTaskBusy] = useState<string | null>(null);\n  const [ownedCosmetics, setOwnedCosmetics] = useState<Set<string>>(new Set());\n  const [cosmeticBusy, setCosmeticBusy] = useState<string | null>(null);
   const [tasks, setTasks] = useState<any[]>([]);
   const [taskProgress, setTaskProgress] = useState<Record<string, any>>({});
-  const [taskBusy, setTaskBusy] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
@@ -399,7 +398,8 @@ export default function HomeScreen() {
               </View>
             })}
         </View>
-<Pressable style={s.personalRoom} onPress={() => void openPersonalRoom()}><View style={s.personalIcon}><Text style={s.personalIconText}>♬</Text></View><View style={{flex:1}}><Text style={s.roomName}>{ar ? "رومي الشخصي" : "My personal room"}</Text><Text style={s.subtitle}>{ar ? "غرفتك الخاصة وصوتك ومتابعوك" : "Your room, voice and followers"}</Text></View><Text style={s.chevron}>‹</Text></Pressable>
+<Pressable style={s.personalRoom} onPress={() => router.push("/wallet")}><View style={s.personalIcon}><Text style={s.personalIconText}>◈</Text></View><View style={{flex:1}}><Text style={s.roomName}>{ar ? "المحفظة" : "Wallet"}</Text><Text style={s.subtitle}>{ar ? "Coins · Diamonds · الشحن · السحب" : "Coins · Diamonds · Recharge · Withdraw"}</Text></View><Text style={s.chevron}>‹</Text></Pressable>
+        <Pressable style={s.personalRoom} onPress={() => void openPersonalRoom()}><View style={s.personalIcon}><Text style={s.personalIconText}>♬</Text></View><View style={{flex:1}}><Text style={s.roomName}>{ar ? "رومي الشخصي" : "My personal room"}</Text><Text style={s.subtitle}>{ar ? "غرفتك الخاصة وصوتك ومتابعوك" : "Your room, voice and followers"}</Text></View><Text style={s.chevron}>‹</Text></Pressable>
         {[["◉",ar?"ملفي الشخصي":"My profile","profile"],["✦",ar?"المتابعون":"Followers","pending"],["▣",ar?"المتجر والأيديات":"Store & IDs","pending"],["⚙",ar?"الإعدادات":"Settings","settings"]].map(([icon,label,action]) => <Pressable key={label} accessibilityRole="button" disabled={action==="pending"} onPress={() => { if(action==="profile") router.push("/edit-profile"); else if(action==="settings") Alert.alert(ar?"الإعدادات":"Settings",ar?"اختر الإجراء":"Choose an action",[{text:ar?"تبديل اللغة":"Switch language",onPress:()=>setLocale(locale==="ar"?"en":"ar")},{text:ar?"تسجيل الخروج":"Sign out",style:"destructive",onPress:()=>void signOut()},{text:ar?"إلغاء":"Cancel",style:"cancel"}]); }} style={[s.menuRow,action==="pending"&&{opacity:0.48}]}><Text style={s.menuIcon}>{icon}</Text><Text style={s.menuLabel}>{action==="pending"?label+" · "+(ar?"قريباً":"Coming soon"):label}</Text><Text style={s.chevron}>{action==="pending"?"◷":"‹"}</Text></Pressable>)}
         <Pressable onPress={signOut} style={s.signOut}><Text style={s.signOutText}>{copy.signOut}</Text></Pressable>
       </View>}
