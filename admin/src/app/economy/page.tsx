@@ -9,7 +9,7 @@ const blank:P={package_key:"",title:"",coins:10000,bonus_coins:0,price_usd:.99,s
 export default function EconomyPage(){
  const supabase=useMemo(()=>createSupabaseBrowserClient(),[]);
  const [tab,setTab]=useState("settings");
- const [pub,setPub]=useState({coins_per_usd:10000,diamond_usd:.0000666667,gift_diamond_ratio:1,min_withdraw_diamonds:150000,min_withdraw_usd:10,show_diamond_value_in_app:false});
+ const [pub,setPub]=useState({coins_per_usd:10000,diamond_usd:.0000666667,gift_diamond_ratio:1,min_withdraw_diamonds:150000,min_withdraw_usd:10,show_diamond_value_in_app:false,platform_payout_percent:60});
  const [priv,setPriv]=useState({agency_default_percent:20});
  const [packages,setPackages]=useState<P[]>([]),[gifts,setGifts]=useState<G[]>([]),[withdrawals,setWithdrawals]=useState<W[]>([]),[agencies,setAgencies]=useState<A[]>([]);
  const [form,setForm]=useState<P>(blank),[agencyName,setAgencyName]=useState(""),[agencyOwner,setAgencyOwner]=useState(""),[agencyPercent,setAgencyPercent]=useState(20),[memberAgency,setMemberAgency]=useState(""),[memberUser,setMemberUser]=useState(""),[rechargeUser,setRechargeUser]=useState(""),[rechargeCoins,setRechargeCoins]=useState(10000),[rechargeSku,setRechargeSku]=useState("manual"),[rechargeRef,setRechargeRef]=useState("");
@@ -32,9 +32,9 @@ export default function EconomyPage(){
  useEffect(()=>{void load()},[supabase]);
  async function saveSettings(){
   if(!supabase)return;setSaving(true);setError("");
-  const publicValue={coins_per_usd:Math.max(100,Math.floor(Number(pub.coins_per_usd)||10000)),diamond_usd:Math.max(.000001,Number(pub.diamond_usd)||.0000666667),gift_diamond_ratio:Math.max(.01,Math.min(1,Number(pub.gift_diamond_ratio)||1)),min_withdraw_diamonds:Math.max(1,Math.floor(Number(pub.min_withdraw_diamonds)||150000)),min_withdraw_usd:Math.max(1,Number(pub.min_withdraw_usd)||10),show_diamond_value_in_app:!!pub.show_diamond_value_in_app};
+  const publicValue={platform_payout_percent:Math.max(0,Math.min(100,Number(pub.platform_payout_percent)||60)),coins_per_usd:Math.max(100,Math.floor(Number(pub.coins_per_usd)||10000)),diamond_usd:Math.max(.000001,Number(pub.diamond_usd)||.0000666667),gift_diamond_ratio:Math.max(.01,Math.min(1,Number(pub.gift_diamond_ratio)||1)),min_withdraw_diamonds:Math.max(1,Math.floor(Number(pub.min_withdraw_diamonds)||150000)),min_withdraw_usd:Math.max(1,Number(pub.min_withdraw_usd)||10),show_diamond_value_in_app:!!pub.show_diamond_value_in_app};
   const privateValue={agency_default_percent:Math.max(0,Math.min(100,Number(priv.agency_default_percent)||20))};
-  const r=await supabase.rpc("jehoo_admin_upsert_economy_settings",{p_settings:{"economy.public":publicValue,"economy.private":privateValue,"economy.coins_per_usd":publicValue.coins_per_usd,"economy.diamond_usd":publicValue.diamond_usd,"economy.min_withdraw_diamonds":publicValue.min_withdraw_diamonds,"economy.agency_commission_percent":privateValue.agency_default_percent,"economy.show_diamond_value_in_app":publicValue.show_diamond_value_in_app}});
+  const r=await supabase.rpc("jehoo_admin_upsert_economy_settings",{p_settings:{"economy.public":publicValue,"economy.private":privateValue,"economy.coins_per_usd":publicValue.coins_per_usd,"economy.diamond_usd":publicValue.diamond_usd,"economy.min_withdraw_diamonds":publicValue.min_withdraw_diamonds,"economy.agency_commission_percent":privateValue.agency_default_percent,"economy.platform_payout_percent":publicValue.platform_payout_percent,"economy.show_diamond_value_in_app":publicValue.show_diamond_value_in_app}});
   if(r.error)setError(r.error.message);else{setPub(publicValue);setPriv(privateValue)}setSaving(false);
  }
  async function savePackage(){if(!supabase)return;setSaving(true);const payload={...form,coins:Math.max(1,Math.floor(Number(form.coins))),bonus_coins:Math.max(0,Math.floor(Number(form.bonus_coins))),price_usd:Math.max(.01,Number(form.price_usd)),sort_order:Math.floor(Number(form.sort_order)||1)};const r=await supabase.rpc("jehoo_admin_upsert_coin_package",{p_package_key:payload.package_key,p_title:payload.title,p_sku:payload.sku||payload.package_key,p_coins:payload.coins,p_bonus:payload.bonus_coins,p_price_usd:payload.price_usd,p_popular:payload.is_popular,p_active:payload.is_active,p_sort:payload.sort_order});if(r.error)setError(r.error.message);else{setForm({...blank});await load()}setSaving(false)}
@@ -50,7 +50,7 @@ export default function EconomyPage(){
   {error&&<div className="notice error">{error}</div>}
   <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:18}}>{tabs.map(t=><button key={t[0]} className={tab===t[0]?"primary":"secondary"} onClick={()=>setTab(t[0])}>{t[1]}</button>)}</div>
   {tab==="settings"&&<section className="panel"><h2>إعدادات الاقتصاد</h2><div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:12}}>
-   <label>Coins لكل 1$<input className="field" type="number" value={pub.coins_per_usd} onChange={e=>setPub({...pub,coins_per_usd:Number(e.target.value)})}/></label>
+   <label>نسبة المنصة %<input className="field" type="number" min="0" max="100" value={pub.platform_payout_percent} onChange={e=>setPub({...pub,platform_payout_percent:Number(e.target.value)})}/></label><label>Coins لكل 1$<input className="field" type="number" value={pub.coins_per_usd} onChange={e=>setPub({...pub,coins_per_usd:Number(e.target.value)})}/></label>
    <label>قيمة Diamond بالدولار<input className="field" type="number" step=".0000001" value={pub.diamond_usd} onChange={e=>setPub({...pub,diamond_usd:Number(e.target.value)})}/></label>
    <label>نسبة gift → Diamonds<input className="field" type="number" step=".01" min=".01" max="1" value={pub.gift_diamond_ratio} onChange={e=>setPub({...pub,gift_diamond_ratio:Number(e.target.value)})}/></label>
    <label>الحد الأدنى للسحب Diamonds<input className="field" type="number" value={pub.min_withdraw_diamonds} onChange={e=>setPub({...pub,min_withdraw_diamonds:Number(e.target.value)})}/></label>
