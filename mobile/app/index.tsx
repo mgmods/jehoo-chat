@@ -10,7 +10,10 @@ import ProfileOnboarding from "@/components/ProfileOnboarding";
 
 WebBrowser.maybeCompleteAuthSession();
 
-type VipLevel = { level:number; title:string; price:number; duration_days:number; benefits:any; is_active:boolean };\ntype UserTask = { id:string; title:string; description:string; action_type:string; target_value:number; reward_coins:number; progress:number; completed_at:string|null; claimed_at:string|null };\ntype Cosmetic = { id:string; cosmetic_key:string; title:string; kind:"frame"|"name_effect"|"badge"|"entrance"; asset_url:string|null; price:number; is_active:boolean };\ntype Room = { id: string; owner_id:string; name: string; description: string; cover_url:string|null; status: "active" | "locked" | "closed"; is_featured: boolean; max_seats:number; password_enabled:boolean; created_at: string; owner?:{display_name:string;avatar_url:string;country?:string|null}|null };
+type VipLevel = { level:number; title:string; price:number; duration_days:number; benefits:any; is_active:boolean };
+type UserTask = { id:string; title:string; description:string; action_type:string; target_value:number; reward_coins:number; progress:number; completed_at:string|null; claimed_at:string|null };
+type Cosmetic = { id:string; cosmetic_key:string; title:string; kind:"frame"|"name_effect"|"badge"|"entrance"; asset_url:string|null; price:number; is_active:boolean };
+type Room = { id: string; owner_id:string; name: string; description: string; cover_url:string|null; status: "active" | "locked" | "closed"; is_featured: boolean; max_seats:number; password_enabled:boolean; created_at: string; owner?:{display_name:string;avatar_url:string;country?:string|null}|null };
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -23,7 +26,20 @@ export default function HomeScreen() {
   const [session, setSession] = useState<Session | null>(null);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [profile, setProfile] = useState<any>(null);
-  const [profileLoading, setProfileLoading] = useState(true);\n  const [cosmetics, setCosmetics] = useState<Cosmetic[]>([]);\n  const [vipLevels, setVipLevels] = useState<VipLevel[]>([]);\n  const [vipBusy, setVipBusy] = useState<number | null>(null);\n  const [userTasks, setUserTasks] = useState<UserTask[]>([]);\n  const [taskBusy, setTaskBusy] = useState<string | null>(null);\n  const [ownedCosmetics, setOwnedCosmetics] = useState<Set<string>>(new Set());\n  const [cosmeticBusy, setCosmeticBusy] = useState<string | null>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [walletCoins, setWalletCoins] = useState(0);
+  const [walletDiamonds, setWalletDiamonds] = useState(0);
+  const [coinPackages, setCoinPackages] = useState<any[]>([]);
+  const [withdrawAmount, setWithdrawAmount] = useState(0);
+  const [withdrawMethod, setWithdrawMethod] = useState("");
+  const [withdrawBusy, setWithdrawBusy] = useState(false);
+  const [cosmetics, setCosmetics] = useState<Cosmetic[]>([]);
+  const [vipLevels, setVipLevels] = useState<VipLevel[]>([]);
+  const [vipBusy, setVipBusy] = useState<number | null>(null);
+  const [userTasks, setUserTasks] = useState<UserTask[]>([]);
+  const [taskBusy, setTaskBusy] = useState<string | null>(null);
+  const [ownedCosmetics, setOwnedCosmetics] = useState<Set<string>>(new Set());
+  const [cosmeticBusy, setCosmeticBusy] = useState<string | null>(null);
   const [tasks, setTasks] = useState<any[]>([]);
   const [taskProgress, setTaskProgress] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
@@ -105,7 +121,8 @@ export default function HomeScreen() {
     setLoading(false);
   }, [session]);
 
-  useEffect(() => { void loadRooms(); }, [loadRooms]);\n  useEffect(() => { void loadCosmetics(); void loadVip(); void loadTasks(); void loadWallet(); }, [session]);
+  useEffect(() => { void loadRooms(); }, [loadRooms]);
+  useEffect(() => { void loadCosmetics(); void loadVip(); void loadTasks(); void loadWallet(); }, [session]);
   useEffect(() => { const client=supabase; if(!client||!session)return; const channel=client.channel("home-rooms").on("postgres_changes",{event:"*",schema:"public",table:"rooms"},()=>void loadRooms()).subscribe(); return()=>{void client.removeChannel(channel)}; },[session,loadRooms]);
 
   async function signIn() {
@@ -182,6 +199,21 @@ export default function HomeScreen() {
     setCoinPackages(packages ?? []);
   }
 
+  async function createRechargeOrder(packageKey: string) {
+    if (!supabase || !session?.user) return;
+    setError("");
+    try {
+      const { data, error: rpcError } = await supabase.rpc("jehoo_create_recharge_order", {
+        p_package_key: packageKey,
+        p_idempotency_key: "mobile-recharge-" + packageKey + "-" + Date.now(),
+      });
+      if (rpcError) throw rpcError;
+      Alert.alert(ar ? "تم إنشاء طلب الشحن" : "Recharge order created", ar ? "أكمل الدفع ثم يتم تأكيد الطلب من النظام." : "Complete payment, then the order will be confirmed.");
+    } catch (e) {
+      setError(ar ? "تعذر إنشاء طلب الشحن." : "Could not create recharge order.");
+    }
+  }
+
   async function requestWithdraw() {
     if (!supabase || !session?.user || withdrawBusy) return;
     setWithdrawBusy(true); setError("");
@@ -211,6 +243,7 @@ export default function HomeScreen() {
     const map: Record<string, any> = {};
     (progressRows ?? []).forEach((row: any) => { map[row.task_id] = row; });
     setTaskProgress(map);
+    setUserTasks((taskRows ?? []).map((t: any) => ({...t, progress:Number(map[t.id]?.progress ?? 0), completed_at:map[t.id]?.completed_at ?? null, claimed_at:map[t.id]?.claimed_at ?? null})));
   }
 
   async function claimTask(taskId: string) {
@@ -379,20 +412,21 @@ export default function HomeScreen() {
         <Pressable style={s.personalRoom} onPress={() => router.push("/official-messages")}><View style={s.personalIcon}><Text style={s.personalIconText}>✓</Text></View><View style={{flex:1}}><Text style={s.roomName}>الرسائل الرسمية ✅</Text><Text style={s.subtitle}>إعلانات وإشعارات الإدارة — مثبتة بالأعلى</Text></View><Text style={s.chevron}>‹</Text></Pressable>
       </View> : <View style={s.mePage}>
         <Text style={s.pageTitle}>{ar ? "أنا" : "Me"}</Text>
-        <View style={s.profileCard}><View style={s.avatar}><Text style={s.avatarText}>{(profile?.nickname || profile?.first_name || "ج").slice(0,1).toUpperCase()}</Text></View><View style={{flex:1}}><Text style={s.meName}>{profile?.nickname || profile?.first_name || (ar ? "مستخدم جيهو" : "JEHOO User")}</Text><Text style={s.subtitle}>ID: {profile?.public_id ?? "—"}</Text></View><Text style={s.onlineDot}>●</Text></View>\n        <View style={s.cosmeticBox}>
+        <View style={s.profileCard}><View style={s.avatar}><Text style={s.avatarText}>{(profile?.nickname || profile?.first_name || "ج").slice(0,1).toUpperCase()}</Text></View><View style={{flex:1}}><Text style={s.meName}>{profile?.nickname || profile?.first_name || (ar ? "مستخدم جيهو" : "JEHOO User")}</Text><Text style={s.subtitle}>ID: {profile?.public_id ?? "—"}</Text></View><Text style={s.onlineDot}>●</Text></View>
+        <View style={s.cosmeticBox}>
           <Text style={s.cosmeticTitle}>{ar ? "المحفظة" : "Wallet"}</Text>
           <View style={{flexDirection:"row-reverse",gap:10}}>
             <View style={[s.taskCard,{flex:1}]}><Text style={s.cosmeticName}>{walletCoins.toLocaleString(ar?"ar":"en")} Coins</Text><Text style={s.subtitle}>{ar?"رصيد الشحن":"Spendable balance"}</Text></View>
             <View style={[s.taskCard,{flex:1}]}><Text style={s.cosmeticName}>{walletDiamonds.toLocaleString(ar?"ar":"en")} ♦</Text><Text style={s.subtitle}>{ar?"أرباح الهدايا":"Gift earnings"}</Text></View>
           </View>
           <Text style={s.subtitle}>{ar ? "باقات الشحن" : "Recharge packages"}</Text>
-          {coinPackages.map((p:any)=><View key={p.package_key} style={s.taskRow}><View style={{flex:1}}><Text style={s.cosmeticName}>{p.title}</Text><Text style={s.subtitle}>{Number(p.coins+p.bonus_coins).toLocaleString(ar?"ar":"en")} Coins · {"$"}{Number(p.price_usd).toFixed(2)}</Text></View><Text style={s.taskPercent}>{p.is_popular ? "★" : ""}</Text></View>)}
+          {coinPackages.map((p:any)=><Pressable key={p.package_key} onPress={()=>void createRechargeOrder(p.package_key)} style={s.taskRow}><View style={{flex:1}}><Text style={s.cosmeticName}>{p.title}</Text><Text style={s.subtitle}>{Number(p.coins+p.bonus_coins).toLocaleString(ar?"ar":"en")} Coins · {"$"}{Number(p.price_usd).toFixed(2)}</Text></View><Text style={s.taskPercent}>{p.is_popular ? "★" : "شحن"}</Text></Pressable>)}
           <Text style={s.subtitle}>{ar ? "السحب" : "Withdraw"}</Text>
           <TextInput value={String(withdrawAmount)} onChangeText={v=>setWithdrawAmount(Number(v.replace(/[^0-9]/g,""))||0)} keyboardType="number-pad" placeholder={ar?"عدد Diamonds":"Diamonds"} placeholderTextColor="#728295" style={s.field}/>
           <TextInput value={withdrawMethod} onChangeText={setWithdrawMethod} placeholder={ar?"طريقة السحب":"Payout method"} placeholderTextColor="#728295" style={s.field}/>
           <Pressable disabled={withdrawBusy} onPress={()=>void requestWithdraw()} style={s.primary}><Text style={s.primaryText}>{withdrawBusy?(ar?"جارٍ الطلب...":"Submitting..."):(ar?"طلب سحب":"Request withdrawal")}</Text></Pressable>
         </View>
-        <View style={s.cosmeticBox}><Text style={s.cosmeticTitle}>{ar ? `VIP الحالي: ${profile?.vip_level || 0}` : `Current VIP: ${profile?.vip_level || 0}`}</Text>{profile?.vip_expires_at?<Text style={s.subtitle}>{ar?"ينتهي: ":"Expires: "}{new Date(profile.vip_expires_at).toLocaleDateString(ar?"ar":"en")}</Text>:null}<View style={s.cosmeticRow}>{vipLevels.map(v=><Pressable key={v.level} disabled={vipBusy!==null} onPress={()=>void buyVip(v.level)} style={[s.cosmeticItem,Number(profile?.vip_level||0)>=v.level&&s.cosmeticItemActive]}><Text style={s.cosmeticEmoji}>VIP</Text><Text style={s.cosmeticName}>{v.title}</Text><Text style={s.cosmeticPrice}>{vipBusy===v.level?(ar?"جارٍ...":"..."):`${Number(v.price).toLocaleString(ar?"ar":"en")} Coins`}</Text></Pressable>)}</View></View><View style={s.cosmeticBox}><Text style={s.cosmeticTitle}>{ar ? "المهام والمكافآت" : "Tasks & Rewards"}</Text><Text style={s.subtitle}>{ar ? "أنجز النشاط داخل التطبيق واحصل على Coins." : "Complete real activity in the app and earn Coins."}</Text>{userTasks.length===0?<Text style={s.subtitle}>{ar ? "لا توجد مهام حالياً." : "No tasks right now."}</Text>:userTasks.map(t=><View key={t.id} style={s.taskRow}><View style={{flex:1}}><Text style={s.cosmeticName}>{t.title}</Text><Text style={s.subtitle}>{t.description || t.action_type}</Text><Text style={s.taskProgress}>{Math.min(t.progress,t.target_value)} / {t.target_value} · +{t.reward_coins} Coins</Text></View><Pressable disabled={!!t.claimed_at || t.progress<t.target_value || taskBusy!==null} onPress={()=>void claimTask(t)} style={[s.taskButton,(t.progress>=t.target_value&&!t.claimed_at)&&s.taskButtonReady]}><Text style={s.taskButtonText}>{t.claimed_at?(ar?"تم":"Done"):t.progress>=t.target_value?(taskBusy===t.id?"...":(ar?"استلام":"Claim")):(ar?"جاري":"Progress")}</Text></Pressable></View>)}</View><View style={s.cosmeticBox}><Text style={s.cosmeticTitle}>{ar ? "المظهر والكوزمتكس" : "Style & Cosmetics"}</Text><Text style={s.subtitle}>{ar ? "اختر إطاراً أو شارة أو تأثير اسم." : "Choose a frame, badge or name effect."}</Text><View style={s.cosmeticRow}>{cosmetics.map(c => <Pressable key={c.cosmetic_key} disabled={cosmeticBusy!==null} onPress={() => void equipCosmetic(c)} style={[s.cosmeticItem,(profile?.equipped_frame_key===c.cosmetic_key||profile?.equipped_badge_key===c.cosmetic_key||profile?.equipped_name_effect_key===c.cosmetic_key)&&s.cosmeticItemActive]}><Text style={s.cosmeticEmoji}>{c.kind==="frame"?"▣":c.kind==="badge"?"★":"✦"}</Text><Text style={s.cosmeticName} numberOfLines={1}>{c.title}</Text><Text style={s.cosmeticPrice}>{ownedCosmetics.has(c.cosmetic_key) ? (ar?"تجهيز":"Equip") : `${Number(c.price).toLocaleString(ar?"ar":"en")} Coins`}</Text></Pressable>)}</View></View>
+        <View style={s.cosmeticBox}><Text style={s.cosmeticTitle}>{ar ? `VIP الحالي: ${profile?.vip_level || 0}` : `Current VIP: ${profile?.vip_level || 0}`}</Text>{profile?.vip_expires_at?<Text style={s.subtitle}>{ar?"ينتهي: ":"Expires: "}{new Date(profile.vip_expires_at).toLocaleDateString(ar?"ar":"en")}</Text>:null}<View style={s.cosmeticRow}>{vipLevels.map(v=><Pressable key={v.level} disabled={vipBusy!==null} onPress={()=>void buyVip(v.level)} style={[s.cosmeticItem,Number(profile?.vip_level||0)>=v.level&&s.cosmeticItemActive]}><Text style={s.cosmeticEmoji}>VIP</Text><Text style={s.cosmeticName}>{v.title}</Text><Text style={s.cosmeticPrice}>{vipBusy===v.level?(ar?"جارٍ...":"..."):`${Number(v.price).toLocaleString(ar?"ar":"en")} Coins`}</Text></Pressable>)}</View></View><View style={s.cosmeticBox}><Text style={s.cosmeticTitle}>{ar ? "المهام والمكافآت" : "Tasks & Rewards"}</Text><Text style={s.subtitle}>{ar ? "أنجز النشاط داخل التطبيق واحصل على Coins." : "Complete real activity in the app and earn Coins."}</Text>{userTasks.length===0?<Text style={s.subtitle}>{ar ? "لا توجد مهام حالياً." : "No tasks right now."}</Text>:userTasks.map(t=><View key={t.id} style={s.taskRow}><View style={{flex:1}}><Text style={s.cosmeticName}>{t.title}</Text><Text style={s.subtitle}>{t.description || t.action_type}</Text><Text style={s.taskProgress}>{Math.min(t.progress,t.target_value)} / {t.target_value} · +{t.reward_coins} Coins</Text></View><Pressable disabled={!!t.claimed_at || t.progress<t.target_value || taskBusy!==null} onPress={()=>void claimTask(t.id)} style={[s.taskButton,(t.progress>=t.target_value&&!t.claimed_at)&&s.taskButtonReady]}><Text style={s.taskButtonText}>{t.claimed_at?(ar?"تم":"Done"):t.progress>=t.target_value?(taskBusy===t.id?"...":(ar?"استلام":"Claim")):(ar?"جاري":"Progress")}</Text></Pressable></View>)}</View><View style={s.cosmeticBox}><Text style={s.cosmeticTitle}>{ar ? "المظهر والكوزمتكس" : "Style & Cosmetics"}</Text><Text style={s.subtitle}>{ar ? "اختر إطاراً أو شارة أو تأثير اسم." : "Choose a frame, badge or name effect."}</Text><View style={s.cosmeticRow}>{cosmetics.map(c => <Pressable key={c.cosmetic_key} disabled={cosmeticBusy!==null} onPress={() => void equipCosmetic(c)} style={[s.cosmeticItem,(profile?.equipped_frame_key===c.cosmetic_key||profile?.equipped_badge_key===c.cosmetic_key||profile?.equipped_name_effect_key===c.cosmetic_key)&&s.cosmeticItemActive]}><Text style={s.cosmeticEmoji}>{c.kind==="frame"?"▣":c.kind==="badge"?"★":"✦"}</Text><Text style={s.cosmeticName} numberOfLines={1}>{c.title}</Text><Text style={s.cosmeticPrice}>{ownedCosmetics.has(c.cosmetic_key) ? (ar?"تجهيز":"Equip") : `${Number(c.price).toLocaleString(ar?"ar":"en")} Coins`}</Text></Pressable>)}</View></View>
                 <View style={s.cosmeticBox}>
           <View style={{flexDirection:"row-reverse",alignItems:"center",justifyContent:"space-between"}}>
             <Text style={s.cosmeticTitle}>{ar ? "المهام والفعاليات" : "Tasks & Events"}</Text>
@@ -492,7 +526,14 @@ const s = StyleSheet.create({
   empty:{alignItems:"center",justifyContent:"center",padding:32,gap:10},
   emptyTitle:{color:"#45544E",fontWeight:"800",fontSize:17},
   error:{color:"#C94A4A",fontSize:13,marginTop:12,textAlign:"center"},
-  cosmeticBox:{marginHorizontal:20,marginBottom:14,padding:14,borderRadius:18,backgroundColor:"#FFFFFF",borderWidth:1,borderColor:"#E1E7E3"},\n  cosmeticTitle:{fontSize:16,fontWeight:"900",color:"#26352F",textAlign:"right"},\n  cosmeticRow:{flexDirection:"row-reverse",flexWrap:"wrap",gap:8,marginTop:12},\n  cosmeticItem:{width:"31%",minHeight:86,borderRadius:14,backgroundColor:"#F7FAF8",borderWidth:1,borderColor:"#E0E7E3",alignItems:"center",justifyContent:"center",padding:7},\n  cosmeticItemActive:{borderColor:"#19C995",backgroundColor:"#E9FBF5"},\n  cosmeticEmoji:{fontSize:22,color:"#1B9C72"},cosmeticName:{fontSize:11,fontWeight:"800",color:"#26352F",marginTop:3,textAlign:"center"},cosmeticPrice:{fontSize:9,color:"#5B6B63",marginTop:3},\n  taskRow:{flexDirection:"row-reverse",alignItems:"center",gap:10,marginTop:10,padding:10,borderRadius:14,backgroundColor:"#F7FAF8",borderWidth:1,borderColor:"#E0E7E3"},taskProgress:{fontSize:10,color:"#1B9C72",fontWeight:"800",marginTop:4,textAlign:"right"},taskButton:{minWidth:66,minHeight:38,paddingHorizontal:10,borderRadius:19,backgroundColor:"#DDE5E1",alignItems:"center",justifyContent:"center"},taskButtonReady:{backgroundColor:"#19C995"},taskButtonText:{fontSize:11,fontWeight:"900",color:"#173B32"},\n  bottomNav:{position:"absolute",left:14,right:14,bottom:7,height:70,zIndex:50,borderRadius:22,backgroundColor:"#FFFFFF",borderWidth:1,borderColor:"#E1E7E3",flexDirection:"row",alignItems:"center",justifyContent:"space-around",elevation:8,shadowColor:"#173B32",shadowOpacity:0.08,shadowRadius:10},
+  cosmeticBox:{marginHorizontal:20,marginBottom:14,padding:14,borderRadius:18,backgroundColor:"#FFFFFF",borderWidth:1,borderColor:"#E1E7E3"},
+  cosmeticTitle:{fontSize:16,fontWeight:"900",color:"#26352F",textAlign:"right"},
+  cosmeticRow:{flexDirection:"row-reverse",flexWrap:"wrap",gap:8,marginTop:12},
+  cosmeticItem:{width:"31%",minHeight:86,borderRadius:14,backgroundColor:"#F7FAF8",borderWidth:1,borderColor:"#E0E7E3",alignItems:"center",justifyContent:"center",padding:7},
+  cosmeticItemActive:{borderColor:"#19C995",backgroundColor:"#E9FBF5"},
+  cosmeticEmoji:{fontSize:22,color:"#1B9C72"},cosmeticName:{fontSize:11,fontWeight:"800",color:"#26352F",marginTop:3,textAlign:"center"},cosmeticPrice:{fontSize:9,color:"#5B6B63",marginTop:3},
+  taskRow:{flexDirection:"row-reverse",alignItems:"center",gap:10,marginTop:10,padding:10,borderRadius:14,backgroundColor:"#F7FAF8",borderWidth:1,borderColor:"#E0E7E3"},taskProgress:{fontSize:10,color:"#1B9C72",fontWeight:"800",marginTop:4,textAlign:"right"},taskButton:{minWidth:66,minHeight:38,paddingHorizontal:10,borderRadius:19,backgroundColor:"#DDE5E1",alignItems:"center",justifyContent:"center"},taskButtonReady:{backgroundColor:"#19C995"},taskButtonText:{fontSize:11,fontWeight:"900",color:"#173B32"},
+  bottomNav:{position:"absolute",left:14,right:14,bottom:7,height:70,zIndex:50,borderRadius:22,backgroundColor:"#FFFFFF",borderWidth:1,borderColor:"#E1E7E3",flexDirection:"row",alignItems:"center",justifyContent:"space-around",elevation:8,shadowColor:"#173B32",shadowOpacity:0.08,shadowRadius:10},
   navItem:{alignItems:"center",justifyContent:"center",minWidth:70},navIcon:{width:36,height:30,borderRadius:12,alignItems:"center",justifyContent:"center"},navIconText:{fontSize:16,fontWeight:"800"},navLabel:{fontSize:11,fontWeight:"800",marginTop:3},
   chatPage:{paddingHorizontal:20,paddingTop:18,paddingBottom:100},pageTitle:{fontSize:23,fontWeight:"900",color:"#26352F",textAlign:"right",marginBottom:12},
   taskCard:{flexDirection:"row-reverse",alignItems:"center",gap:10,paddingVertical:10,borderBottomWidth:1,borderBottomColor:"#E7ECE9"},
