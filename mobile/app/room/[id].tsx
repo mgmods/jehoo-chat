@@ -8,7 +8,7 @@ import { supabase } from "@/lib/supabase";
 
 type RoomRow = { id:string; name:string; description:string; status:"active"|"locked"|"closed"; owner_id:string; livekit_room_name:string; cover_url:string|null; max_seats:number; password_enabled:boolean; welcome_message:string };
 type SeatRow = { room_id:string; seat_number:number; status:"empty"|"occupied"|"locked"|"reserved"; user_id:string|null; reserved_for:string|null };
-type ProfileRow = { id:string; display_name:string; avatar_url:string; level:number; vip_level:number };
+type ProfileRow = { id:string; display_name:string; avatar_url:string; level:number; vip_level:number; equipped_frame_key:string|null; equipped_name_effect_key:string|null; equipped_badge_key:string|null };
 type MicRequestRow = { id:string; user_id:string; created_at:string; profiles?:{display_name:string}|null };
 
 let liveKitGlobalsRegistered = false;
@@ -40,7 +40,7 @@ export default function VoiceRoomRoute() {
     setError("");
     const {data:roomData,error:roomError}=await client.from("rooms").select("id,name,description,status,owner_id,livekit_room_name,cover_url,max_seats,password_enabled,welcome_message").eq("id",roomId).maybeSingle();
     if(roomError||!roomData){setError(roomError?.message??"Room not found.");setLoading(false);return;}
-    setRoom(roomData as RoomRow); const {data:owner}=await client.from("profiles").select("id,display_name,avatar_url,level,vip_level").eq("id",roomData.owner_id).maybeSingle(); setOwnerProfile(owner as ProfileRow|null); const {data:{user:viewer}}=await client.auth.getUser(); setCurrentUserId(viewer?.id??null); if(viewer&&viewer.id!==roomData.owner_id){const {data:follow}=await client.from("user_follows").select("id").eq("follower_id",viewer.id).eq("following_id",roomData.owner_id).maybeSingle();setFollowed(Boolean(follow));} setSettingsName(roomData.name); setSettingsDescription(roomData.description||""); setSettingsCover(roomData.cover_url||""); setSettingsSeats(String(roomData.max_seats||10)); setSettingsPasswordEnabled(Boolean(roomData.password_enabled)); setSettingsWelcome(roomData.welcome_message||"");
+    setRoom(roomData as RoomRow); const {data:owner}=await client.from("profiles").select("id,display_name,avatar_url,level,vip_level,equipped_frame_key,equipped_name_effect_key,equipped_badge_key").eq("id",roomData.owner_id).maybeSingle(); setOwnerProfile(owner as ProfileRow|null); const {data:{user:viewer}}=await client.auth.getUser(); setCurrentUserId(viewer?.id??null); if(viewer&&viewer.id!==roomData.owner_id){const {data:follow}=await client.from("user_follows").select("id").eq("follower_id",viewer.id).eq("following_id",roomData.owner_id).maybeSingle();setFollowed(Boolean(follow));} setSettingsName(roomData.name); setSettingsDescription(roomData.description||""); setSettingsCover(roomData.cover_url||""); setSettingsSeats(String(roomData.max_seats||10)); setSettingsPasswordEnabled(Boolean(roomData.password_enabled)); setSettingsWelcome(roomData.welcome_message||"");
     const {data:roomPeople}=await client.from("room_members").select("user_id").eq("room_id",roomId);
     const activeRoomMemberIds=[...new Set([...(roomPeople??[]).map(person=>person.user_id),roomData.owner_id].filter(Boolean))];
     setRoomMemberCount(activeRoomMemberIds.length);
@@ -50,7 +50,7 @@ export default function VoiceRoomRoute() {
     if(seatError){setError(seatError.message);setLoading(false);return;}
     const seatRows=(seatData??[]) as SeatRow[]; setSeats(seatRows);
     const ids=[...new Set(seatRows.flatMap(seat=>[seat.user_id,seat.reserved_for]).filter((id):id is string=>Boolean(id)))];
-    if(ids.length){const {data:profileRows,error:profileError}=await client.from("profiles").select("id,display_name,avatar_url,level,vip_level").in("id",ids);if(profileError){setError(profileError.message);setLoading(false);return;}const map:Record<string,ProfileRow>={};(profileRows??[]).forEach(p=>{map[p.id]=p as ProfileRow});setProfiles(map);}else setProfiles({});
+    if(ids.length){const {data:profileRows,error:profileError}=await client.from("profiles").select("id,display_name,avatar_url,level,vip_level,equipped_frame_key,equipped_name_effect_key,equipped_badge_key").in("id",ids);if(profileError){setError(profileError.message);setLoading(false);return;}const map:Record<string,ProfileRow>={};(profileRows??[]).forEach(p=>{map[p.id]=p as ProfileRow});setProfiles(map);}else setProfiles({});
     const {data:{user}}=await client.auth.getUser(); const host=Boolean(user&&user.id===roomData.owner_id); setIsHost(host);
     let moderator=false;let memberRole="listener";let memberMuted=false;
     if(user&&!host){const {data:member}=await client.from("room_members").select("room_role,muted").eq("room_id",roomId).eq("user_id",user.id).maybeSingle();memberRole=member?.room_role??"listener";memberMuted=Boolean(member?.muted);setIsRoomMember(Boolean(member));moderator=["co_host","moderator"].includes(memberRole);}else setIsRoomMember(host);
@@ -334,8 +334,8 @@ function openMemberActions(targetId:string,name:string){
         <View style={s.roomTop}>
           <Pressable onPress={()=>Alert.alert("مغادرة الغرفة","هل تريد مغادرة الغرفة؟",[ {text:"إلغاء",style:"cancel"},{text:"مغادرة",style:"destructive",onPress:()=>void exitRoom()} ])} style={s.power}><Text style={s.powerText}>⏻</Text></Pressable>
           <View style={s.ownerCard}>
-            <View style={s.ownerAvatar}>{ownerProfile?.avatar_url?<Image source={{uri:ownerProfile.avatar_url}} style={s.ownerImage}/>:<Text style={s.ownerAvatarText}>👤</Text>}</View>
-            <View style={s.ownerText}><Text style={s.ownerName} numberOfLines={1}>{ownerProfile?.display_name||"مالك الغرفة"}</Text><Text style={s.ownerId}>ID: {ownerProfile?.id?.slice(0,8)??"—"}</Text></View>
+            <View style={[s.ownerAvatar,ownerProfile?.equipped_frame_key&&s.equippedFrame]}>{ownerProfile?.avatar_url?<Image source={{uri:ownerProfile.avatar_url}} style={s.ownerImage}/>:<Text style={s.ownerAvatarText}>👤</Text>}{ownerProfile?.equipped_badge_key?<View style={s.badgeMark}><Text style={s.badgeMarkText}>★</Text></View>:null}</View>
+            <View style={s.ownerText}><Text style={[s.ownerName,ownerProfile?.equipped_name_effect_key&&s.nameEffect]} numberOfLines={1}>{ownerProfile?.display_name||"مالك الغرفة"}{ownerProfile?.equipped_badge_key?"  ★":""}</Text><Text style={s.ownerId}>ID: {ownerProfile?.id?.slice(0,8)??"—"}</Text></View>
             {currentUserId&&currentUserId!==room?.owner_id?<Pressable onPress={()=>void toggleFollow()} style={s.follow}><Text style={s.followText}>{followed?"متابَع":"متابعة"}</Text></Pressable>:null}
           </View>
           <View style={s.onlinePill}><Text style={s.onlineText}>👤 {roomMemberCount}</Text></View>
@@ -356,9 +356,9 @@ function openMemberActions(targetId:string,name:string){
                 else if(canModerate)Alert.alert("المقعد "+seat.seat_number,"اختر الإجراء",[ {text:"الجلوس",onPress:()=>void takeSeat(seat.seat_number)},{text:"قفل المقعد",onPress:()=>void toggleSeatLock(seat.seat_number,true)},{text:"إلغاء",style:"cancel"} ]);
                 else void takeSeat(seat.seat_number);
               }} style={[s.seat,occupied&&s.seatOccupied,seat.status==="locked"&&s.seatLocked]}>
-                <View style={[s.avatar,occupied&&s.avatarSpeaking]}>{person?.avatar_url?<Image source={{uri:person.avatar_url}} style={s.seatImage}/>:<Text style={s.avatarText}>{label}</Text>}</View>
+                <View style={[s.avatar,occupied&&s.avatarSpeaking,person?.equipped_frame_key&&s.equippedFrame]}>{person?.avatar_url?<Image source={{uri:person.avatar_url}} style={s.seatImage}/>:<Text style={s.avatarText}>{label}</Text>}{person?.equipped_badge_key?<View style={s.badgeMarkSeat}><Text style={s.badgeMarkText}>★</Text></View>:null}</View>
                 <Text numberOfLines={1} style={s.seatNumber}>{seat.seat_number}</Text>
-                <Text numberOfLines={1} style={s.seatName}>{person?.display_name??(seat.status==="locked"?"مقفل":"مقعد")}</Text>
+                <Text numberOfLines={1} style={[s.seatName,person?.equipped_name_effect_key&&s.nameEffect]}>{person?.display_name??(seat.status==="locked"?"مقفل":"مقعد")}{person?.equipped_badge_key?" ★":""}</Text>
               </Pressable>;
             })}
           </View>
