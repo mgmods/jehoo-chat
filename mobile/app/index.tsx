@@ -221,7 +221,7 @@ export default function HomeScreen() {
       const { data, error: rpcError } = await supabase.rpc("jehoo_request_withdraw", {
         p_diamonds: Math.max(1, Math.floor(Number(withdrawAmount) || 0)),
         p_method: withdrawMethod.trim() || "manual",
-        p_payout_details: {},
+        payout_details: {},
       });
       if (rpcError) throw rpcError;
       await loadWallet();
