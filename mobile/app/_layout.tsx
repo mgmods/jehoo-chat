@@ -13,6 +13,7 @@ export default function RootLayout() {
   const [splashLoading, setSplashLoading] = useState(true);
   const [showSplash, setShowSplash] = useState(false);
   const splashTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [splashImageFailed, setSplashImageFailed] = useState(false);
 
 
   useEffect(() => {
@@ -50,13 +51,25 @@ export default function RootLayout() {
       }
     }, 5000);
 
+    const resolveImageUrl = (row: any) => {
+      const direct = typeof row?.image_url === "string" ? row.image_url.trim() : "";
+      const path = typeof row?.storage_path === "string" ? row.storage_path.trim() : "";
+      if (path) {
+        const { data } = client.storage.from("app-assets").getPublicUrl(path);
+        if (data?.publicUrl) return data.publicUrl;
+      }
+      return direct;
+    };
+
     const applySettings = (row: any) => {
       if (!active) return;
       if (splashTimeout.current) clearTimeout(splashTimeout.current);
-      if (row?.image_url) {
+      const imageUrl = resolveImageUrl(row);
+      if (imageUrl) {
+        setSplashImageFailed(false);
         setSplash({
-          image_url: row.image_url,
-          duration_seconds: Math.max(1, Math.min(15, Number(row.duration_seconds) || 5)),
+          image_url: imageUrl,
+          duration_seconds: Math.max(1, Math.min(15, Number(row?.duration_seconds) || 5)),
         });
         setShowSplash(true);
       } else {
@@ -69,7 +82,7 @@ export default function RootLayout() {
       try {
         const { data, error } = await client
           .from("app_splash_settings")
-          .select("image_url,duration_seconds")
+          .select("image_url,storage_path,duration_seconds")
           .eq("id", "default")
           .maybeSingle();
         if (!active) return;
@@ -122,14 +135,15 @@ export default function RootLayout() {
   return <>
     <StatusBar style="light" />
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#0A1118" } }} />
-    {showSplash && splash?.image_url ? <View style={styles.splash}>
+    {showSplash && splash?.image_url && !splashImageFailed ? <View style={styles.splash}>
       <Image
         source={{ uri: splash.image_url }}
         resizeMode="cover"
         style={styles.image}
         accessibilityLabel="JEHOO CHAT splash screen"
+        onError={() => setSplashImageFailed(true)}
       />
-      <Pressable accessibilityRole="button" accessibilityLabel="تخطي شاشة البداية" onPress={skipSplash} style={styles.skipButton}><Text style={styles.skipText}>تخطي ›</Text></Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel="تخطي شاشة البداية" hitSlop={12} onPress={skipSplash} style={styles.skipButton}><Text style={styles.skipText}>تخطي ›</Text></Pressable>
     </View> : null}
   </>;
 }
@@ -143,6 +157,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   image: { width: "100%", height: "100%" },
-  skipButton: { position: "absolute", bottom: 48, right: 24, paddingVertical: 10, paddingHorizontal: 18, borderRadius: 24, backgroundColor: "rgba(0,0,0,0.42)", borderWidth: 1, borderColor: "rgba(255,255,255,0.45)" },
+  skipButton: { position: "absolute", top: 58, right: 18, paddingVertical: 10, paddingHorizontal: 18, borderRadius: 24, backgroundColor: "rgba(0,0,0,0.42)", borderWidth: 1, borderColor: "rgba(255,255,255,0.45)" },
   skipText: { color: "#FFFFFF", fontSize: 15, fontWeight: "700" },
 });
