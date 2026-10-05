@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Alert, Image, Pressable, StyleSheet, Text, TextInput, View, ScrollView, useWindowDimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
@@ -14,6 +14,8 @@ type Room = { id: string; owner_id:string; name: string; description: string; co
 
 export default function HomeScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ tab?: string }>();
+  const routeTab: "rooms" | "chats" | "me" = params.tab === "chats" || params.tab === "me" ? params.tab : "rooms";
   const { width: screenWidth } = useWindowDimensions();
   const contentWidth = Math.max(0, screenWidth - 40);
   const cardWidth = Math.max(0, (contentWidth - 21) / 2);
@@ -29,12 +31,21 @@ export default function HomeScreen() {
   const [roomName, setRoomName] = useState("");
   const [roomDescription, setRoomDescription] = useState("");
   const [createBusy, setCreateBusy] = useState(false);
-  const [tab, setTab] = useState<"rooms" | "chats" | "me">("rooms");
+  const [tab, setTab] = useState<"rooms" | "chats" | "me">(routeTab);
   const [roomFilter, setRoomFilter] = useState<"popular" | "egypt" | "syria" | "mine" | "featured" | "locked">("popular");
   const [showSearch, setShowSearch] = useState(false);
   const [roomSearch, setRoomSearch] = useState("");
   const copy = messages[locale];
   const ar = locale === "ar";
+
+  useEffect(() => {
+    setTab(routeTab);
+  }, [routeTab]);
+
+  function navigateTab(next: "rooms" | "chats" | "me") {
+    setTab(next);
+    router.replace(next === "rooms" ? "/" : { pathname: "/", params: { tab: next } });
+  }
   const filteredRooms = rooms.filter((room) => {
     const q = roomSearch.trim().toLocaleLowerCase();
     if (q && !room.name.toLocaleLowerCase().includes(q) && !(room.description ?? "").toLocaleLowerCase().includes(q)) return false;
@@ -181,9 +192,15 @@ export default function HomeScreen() {
   async function openPersonalRoom() {
     if (!supabase) return;
     setError("");
-    const { data, error: roomError } = await supabase.rpc("jehoo_get_or_create_personal_room");
-    if (roomError || !data?.id) { setError(roomError?.message ?? (ar ? "تعذر تجهيز رومك الشخصي." : "Could not prepare your personal room.")); return; }
-    router.push({ pathname: "/room/[id]", params: { id: data.id } });
+    try {
+      const { data, error: roomError } = await supabase.rpc("jehoo_get_or_create_personal_room");
+      const room = Array.isArray(data) ? data[0] : data;
+      if (roomError) throw roomError;
+      if (!room?.id) throw new Error(ar ? "تعذر تجهيز رومك الشخصي." : "Could not prepare your personal room.");
+      router.push({ pathname: "/room/[id]", params: { id: String(room.id) } });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : (ar ? "تعذر فتح رومك الشخصي." : "Could not open your personal room."));
+    }
   }
 
   async function signOut() {
@@ -263,7 +280,7 @@ export default function HomeScreen() {
       </View>}
       {error && session && tab !== "rooms" ? <Text style={s.error}>{error}</Text> : null}
     </ScrollView>
-    {session ? <View style={s.bottomNav}>{[["rooms","◉",ar?"الغرف":"Rooms"],["chats","☷",ar?"الدردشات":"Chats"],["me","●",ar?"أنا":"Me"]].map(([id,icon,label]) => <Pressable key={id} onPress={() => setTab(id as "rooms"|"chats"|"me")} style={s.navItem}><View style={[s.navIcon,{backgroundColor:tab===id?"#31D6B0":"#16222D"}]}><Text style={[s.navIconText,{color:tab===id?"#06251E":"#B6C4D0"}]}>{icon}</Text></View><Text style={[s.navLabel,{color:tab===id?"#31D6B0":"#94A3B8"}]}>{label}</Text></Pressable>)}</View> : null}
+    {session ? <View style={s.bottomNav}>{[["rooms","◉",ar?"الغرف":"Rooms"],["chats","☷",ar?"الدردشات":"Chats"],["me","●",ar?"أنا":"Me"]].map(([id,icon,label]) => <Pressable key={id} accessibilityRole="button" accessibilityLabel={label} hitSlop={12} onPress={() => navigateTab(id as "rooms"|"chats"|"me")} style={s.navItem}><View style={[s.navIcon,{backgroundColor:tab===id?"#31D6B0":"#16222D"}]}><Text style={[s.navIconText,{color:tab===id?"#06251E":"#B6C4D0"}]}>{icon}</Text></View><Text style={[s.navLabel,{color:tab===id?"#31D6B0":"#94A3B8"}]}>{label}</Text></Pressable>)}</View> : null}
   </SafeAreaView>;
 
 }
@@ -331,7 +348,7 @@ const s = StyleSheet.create({
   empty:{alignItems:"center",justifyContent:"center",padding:32,gap:10},
   emptyTitle:{color:"#45544E",fontWeight:"800",fontSize:17},
   error:{color:"#C94A4A",fontSize:13,marginTop:12,textAlign:"center"},
-  bottomNav:{position:"absolute",left:14,right:14,bottom:7,height:70,borderRadius:22,backgroundColor:"#FFFFFF",borderWidth:1,borderColor:"#E1E7E3",flexDirection:"row",alignItems:"center",justifyContent:"space-around",elevation:8,shadowColor:"#173B32",shadowOpacity:0.08,shadowRadius:10},
+  bottomNav:{position:"absolute",left:14,right:14,bottom:7,height:70,zIndex:50,borderRadius:22,backgroundColor:"#FFFFFF",borderWidth:1,borderColor:"#E1E7E3",flexDirection:"row",alignItems:"center",justifyContent:"space-around",elevation:8,shadowColor:"#173B32",shadowOpacity:0.08,shadowRadius:10},
   navItem:{alignItems:"center",justifyContent:"center",minWidth:70},navIcon:{width:36,height:30,borderRadius:12,alignItems:"center",justifyContent:"center"},navIconText:{fontSize:16,fontWeight:"800"},navLabel:{fontSize:11,fontWeight:"800",marginTop:3},
   chatPage:{paddingHorizontal:20,paddingTop:18,paddingBottom:100},pageTitle:{fontSize:23,fontWeight:"900",color:"#26352F",textAlign:"right",marginBottom:12},
   personalRoom:{flexDirection:"row-reverse",alignItems:"center",gap:12,backgroundColor:"#FFFFFF",borderWidth:1,borderColor:"#E0E6E2",borderRadius:20,padding:15,marginBottom:10},
